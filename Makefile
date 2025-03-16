@@ -26,39 +26,22 @@ help:
 	} \
 	{ lastLine = $$0 }' $(MAKEFILE_LIST)
 
+.PHONY: env
+## Prepares env files and terraform tfvar files
+env:
+	./env_setup.sh
+
 .PHONY: up
 ## Builds the base Docker image and starts Flink cluster
 up:
 	docker-compose up --build --remove-orphans
 
+.PHONY: start
+## Starts all services in docker-compose
+start:
+	docker-compose start
+
 .PHONY: stop
 ## Stops all services in docker-compose
 stop:
 	docker-compose stop
-
-# .PHONY: down
-# ## Shuts down the Flink cluster
-# down:
-# 	docker-compose down --remove-orphans
-
-# .PHONY: job
-# ## Submit the Flink job
-# job:
-# 	docker-compose exec jobmanager ./bin/flink run -py /opt/src/job/start_job.py --pyFiles /opt/src -d
-
-# .PHONY: aggregation_job
-# ## Submit the Flink aggregated job
-# aggregation_job:
-# 	docker-compose exec jobmanager ./bin/flink run -py /opt/src/job/aggregation_job.py --pyFiles /opt/src -d
-
-# .PHONY: hw6_job
-# ## Submit the Flink job for homework 6
-# hw6_job:
-# 	docker-compose exec jobmanager ./bin/flink run -py /opt/src/homework/session_job_2.py --pyFiles /opt/src -d
-
-
-
-# .PHONY: start
-# ## Starts all services in docker-compose
-# start:
-# 	docker-compose start

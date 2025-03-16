@@ -1,7 +1,12 @@
 *.csv
 *.parquet
 *.gz
+
+
+# ignore environment files and virtual environment
+*.env
 venv*
+
 # Ignore specific folders
 
 
@@ -45,5 +50,3 @@ override.tf.json
 .terraformrc
 terraform.rc
 
-# ignore environment files
-.env
