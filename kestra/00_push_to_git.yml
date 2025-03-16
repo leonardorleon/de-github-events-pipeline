@@ -1,0 +1,17 @@
+id: 00_push_to_git
+namespace: prod
+
+tasks:
+  - id: commit_and_push
+    type: io.kestra.plugin.git.PushFlows
+    username: "{{ envs.github_username }}"
+    password: "{{ secret('GITHUB_ACCESS_TOKEN') }}"
+    url: https://github.com/leonardorleon/de-github-events-pipeline
+    branch: kestra-flows
+    flows:
+      - 00_gcp_kv
+    sourceNamespace: de_zoomcamp
+    targetNamespace: prod
+    gitDirectory: kestra
+    commitMessage: "changes to kestra flows. First commit through kestra"
+    dryRun: true
