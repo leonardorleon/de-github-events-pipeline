@@ -13,6 +13,7 @@ project_name=gh_events
 project_region=EUROPE-WEST1
 bucket_storage_class=STANDARD
 credentials_path=~/.google/credentials/google_credentials.json
+github_repo_url=https://github.com/leonardorleon/de-github-events-pipeline
 
 
 # only used if pushing kestra flows to github from the kestra server
@@ -53,5 +54,6 @@ echo "KESTRA_GCP_PROJECT_ID=$project_id" >> env_file.env
 echo "KESTRA_GCP_REGION=$region" >> env_file.env
 echo "KESTRA_GCP_BUCKET_NAME=$data_lake_bucket" >> env_file.env
 echo "KESTRA_BQ_DATASET=$bq_dataset" >> env_file.env
+echo "KESTRA_GITHUB_URL=$github_repo_url" >> env_file.env
 echo "KESTRA_GITHUB_USERNAME=$github_user" >> env_file.env
 echo "SECRET_GITHUB_ACCESS_TOKEN=$github_token" >> env_file.env 
