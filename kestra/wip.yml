@@ -1,0 +1,64 @@
+id: 01_gh_archive_to_bq
+namespace: de_zoomcamp
+
+inputs:
+  - id: branch
+    type: SELECT
+    displayName: Select the branch of the project to run
+    values: ['main','develop']
+    defaults: 'develop'
+    allowCustomValue: true
+
+variables:
+  date: '{{ trigger.date }}'
+  year: '{{ trigger.date | date(format="%Y") }}'
+  month: '{{ trigger.date | date(format="%m") }}'
+  day: '{{ trigger.date | date(format="%d") }}'
+  hour: '{{ trigger.date | date(format="%H") }}'
+  #filename: '{{ trigger.date | date(format="%Y") }}-{{ trigger.date | date(format="%m") }}-{{ trigger.date | date(format="%d") }}-{{ trigger.date | date(format="%H") }}' # 2015-01-01-15.json
+  filename: "{{ trigger.date | date('yyyy-MM-dd-H')}}"
+
+tasks:
+  - id: set_label
+    type: io.kestra.plugin.core.execution.Labels
+    labels:
+      file: "{{ inputs.branch }}"
+
+  - id: working_directory
+    type: io.kestra.plugin.core.flow.WorkingDirectory
+    tasks:
+      # - id: clone_repo
+      #   type: io.kestra.plugin.git.Clone
+      #   url: "{{ envs.github_url }}"
+      #   branch: "{{inputs.branch}}"
+
+      - id: test_backfill
+        type: io.kestra.plugin.scripts.shell.Commands
+        commands:
+          - echo "date "{{ render(vars.date) }}
+          - echo "filename "{{ render(vars.filename) }}
+      
+      # - id: extract_file
+      #   type: io.kestra.plugin.scripts.shell.Commands
+      #   outputFiles:
+      #     - "*.csv"
+      #   taskRunner:
+      #     type: io.kestra.plugin.core.runner.Process
+      #   commands:
+      #     - wget -qO- https://data.gharchive.org/{{ inputs. }}.gz
+
+      # - id: inspect_file
+      #   type: io.kestra.plugin.scripts.shell.Commands
+      #   taskRunner: 
+      #     type: io.kestra.plugin.core.runner.Process
+      #   commands:
+      #     - gunzip 2015-01-01-15.json.gz
+      #     - ls | grep .json
+      #     - head -n 1 2015-01-01-15.json
+
+
+triggers:
+  - id: hourly_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "30 * * * *"
+    disabled: false
