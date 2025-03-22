@@ -78,8 +78,12 @@ def write_events_by_type(events, output_dir, file_date):
             "filename": event_type_file,
         }
 
+    output = {
+        "data": files_processed
+    }
+
     logger.info(f"All files processed!")
-    Kestra.outputs(files_processed)
+    Kestra.outputs(output)
 
 
 def main(input_file, output_dir):
