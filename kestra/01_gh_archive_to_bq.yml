@@ -8,15 +8,9 @@ inputs:
     values: ['main','develop']
     defaults: 'develop'
     allowCustomValue: true
-  - id: start_hour
+  - id: events_hour
     type: SELECT
-    displayName: Select the start hour to extract
-    values: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23']
-    defaults: '0'
-    allowCustomValue: true
-  - id: end_hour
-    type: SELECT
-    displayName: Select the final hour to extract
+    displayName: Select the hour to extract events from
     values: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23']
     defaults: '0'
     allowCustomValue: true
@@ -24,7 +18,7 @@ inputs:
 variables:
   date: "{{ trigger.date ?? execution.startDate | dateAdd(-1, 'DAYS') }}"
   file_date: "{{ trigger.date ?? execution.startDate | dateAdd(-1, 'DAYS') | date(format='yyyy-MM-dd')}}"
-  file_hours: "{{ '{' }}{{inputs.start_hour}}..{{inputs.end_hour}}{{ '}' }}"
+  # file_hours: "{{ '{' }}{{inputs.start_hour}}..{{inputs.end_hour}}{{ '}' }}"
   file_extension: ".json"
 
 tasks:
@@ -47,35 +41,36 @@ tasks:
     type: io.kestra.plugin.core.log.Log
     message: "Executing extraction for date {{ render(vars.date) }} with files from: {{ render(vars.file_date )}}."
   
-  - id: extract_files
-    type: io.kestra.plugin.scripts.shell.Commands
-    outputFiles:
-      - "*.json"
-    taskRunner:
-      type: io.kestra.plugin.core.runner.Process
-    # -q makes the execution quiet while -O- outputs the contents to stdout instead of a file, so we can pipe it to gunzip.
-    # gunzip > file.gz takes the piped data into the file
-    # note: in this case, the range function is inclusive on both ends
-    commands:
-      - |
-        {% for i in range(inputs.start_hour, inputs.end_hour) %}
-          wget -qO- "https://data.gharchive.org/{{ render(vars.file_date) }}-{{ i }}.json.gz" | gunzip > {{ render(vars.file_date) }}-{{ i }}.json
-        {% endfor %}
+  # - id: extract_files
+  #   type: io.kestra.plugin.scripts.shell.Commands
+  #   outputFiles:
+  #     - "*.json"
+  #   taskRunner:
+  #     type: io.kestra.plugin.core.runner.Process
+  #   # -q makes the execution quiet while -O- outputs the contents to stdout instead of a file, so we can pipe it to gunzip.
+  #   # gunzip > file.gz takes the piped data into the file
+  #   # note: in this case, the range function is inclusive on both ends
+  #   commands:
+  #     - wget -qO- "https://data.gharchive.org/{{ render(vars.file_date) }}-{{ i }}.json.gz" | gunzip > {{ render(vars.file_date) }}-{{ i }}.json
 
-  - id: inspect_files
-    type: io.kestra.plugin.scripts.shell.Commands
-    taskRunner: 
-      type: io.kestra.plugin.core.runner.Process
-    inputFiles: '{{ outputs["extract_files"]["outputFiles"] }}'
-    outputFiles:
-      - "*.txt"
-    commands:
-      # - ls | grep .json > downloaded_files.txt
-      - ls | grep .json
+  # - id: inspect_files
+  #   type: io.kestra.plugin.scripts.shell.Commands
+  #   taskRunner: 
+  #     type: io.kestra.plugin.core.runner.Process
+  #   inputFiles: '{{ outputs["extract_files"]["outputFiles"] }}'
+  #   outputFiles:
+  #     - "*.txt"
+  #   commands:
+  #     - |
+  #       filename=$(ls | grep .json)
+  #       echo "{{ filenames }}"
+  #   return:
+  #       filenames: "{{ filenames.split('\n')}}"
+  #     # - ls | grep .json
 
   # - id: process-files
   #   type: io.kestra.plugin.core.flow.ForEach
-  #   values: "{{ outputs.inspect_files.outputFiles['downloaded_files.txt'] }}"
+  #   values: "{{ outputs.inspect_files.outputFiles['downloaded_files.txt'].split('\n') }}"
   #   tasks:
   #     - id: process-file
   #       type: io.kestra.plugin.core.log.Log
