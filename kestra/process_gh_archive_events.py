@@ -65,7 +65,8 @@ def write_events_by_type(events, output_dir, file_date):
 
         with open(event_type_file_path, 'w') as file:
             logger.info(f"Writing {event_type_file} to {type_dir}")
-            json.dump(events, file, indent=4)
+            for event in events:
+                file.write(json.dumps(event) + '\n')
 
         # Determine the file mode: 'w' for the first iteration, 'a' for subsequent iterations
         mode = 'w' if i == 0 else 'a'
