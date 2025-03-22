@@ -36,46 +36,71 @@ tasks:
       file_date: "{{ render(vars.file_date) }}"
       file_hour: "{{ render(vars.file_hour) }}"
 
-  # - id: working_directory
-  #   type: io.kestra.plugin.core.flow.WorkingDirectory
-  #   tasks:
-  - id: clone_repo
-    type: io.kestra.plugin.git.Clone
-    url: "{{ envs.github_url }}"
-    branch: "{{inputs.branch}}"
+  - id: working_directory
+    type: io.kestra.plugin.core.flow.WorkingDirectory
+    tasks:
+      - id: clone_repo
+        type: io.kestra.plugin.git.Clone
+        url: "{{ envs.github_url }}"
+        branch: "{{inputs.branch}}"
 
-  - id: start_etl
-    type: io.kestra.plugin.core.log.Log
-    message: "Executing extraction for date {{ render(vars.date) }} with file from: {{ render(vars.file_date )}} and hour: {{ render(vars.file_hour) }}."
-  
-  - id: extract_files
+      - id: start_etl
+        type: io.kestra.plugin.core.log.Log
+        message: "Executing extraction for date {{ render(vars.date) }} with file from: {{ render(vars.file_date )}} and hour: {{ render(vars.file_hour) }}."
+      
+      - id: extract_files
+        type: io.kestra.plugin.scripts.shell.Commands
+        # outputFiles:
+        #   - "*.json"
+        taskRunner:
+          type: io.kestra.plugin.core.runner.Process
+        # -q makes the execution quiet while -O- outputs the contents to stdout instead of a file, so we can pipe it to gunzip.
+        # gunzip > file.gz takes the piped data into the file
+        # note: in this case, the range function is inclusive on both ends
+        commands:
+          - wget -qO- "https://data.gharchive.org/{{ render(vars.file_date) }}-{{ render(vars.file_hour) }}{{ render(vars.file_extension )}}.gz" 
+            | gunzip > {{ render(vars.file_date) }}-{{ render(vars.file_hour) }}{{ render(vars.file_extension )}}
+
+      - id: inspect_file
+        type: io.kestra.plugin.scripts.shell.Commands
+        taskRunner: 
+          type: io.kestra.plugin.core.runner.Process
+        # inputFiles: '{{ outputs["extract_files"]["outputFiles"] }}'
+        commands:
+          - ls | grep .json
+
+      - id: process_file
+        type: io.kestra.plugin.scripts.python.Commands
+        taskRunner: 
+          type: io.kestra.plugin.core.runner.Process
+        commands:
+          - python kestra/process_gh_archive_events.py --input_file={{ render(vars.file_date) }}-{{ render(vars.file_hour) }}{{ render(vars.file_extension )}} --output_dir=data
+        outputFiles: 
+          - "data/**"
+
+  - id: check_processed_files
     type: io.kestra.plugin.scripts.shell.Commands
-    outputFiles:
-      - "*.json"
     taskRunner:
       type: io.kestra.plugin.core.runner.Process
-    # -q makes the execution quiet while -O- outputs the contents to stdout instead of a file, so we can pipe it to gunzip.
-    # gunzip > file.gz takes the piped data into the file
-    # note: in this case, the range function is inclusive on both ends
-    commands:
-      - wget -qO- "https://data.gharchive.org/{{ render(vars.file_date) }}-{{ render(vars.file_hour) }}.json.gz" 
-        | gunzip > {{ render(vars.file_date) }}-{{ render(vars.file_hour) }}.json
-
-  - id: inspect_file
-    type: io.kestra.plugin.scripts.shell.Commands
-    taskRunner: 
-      type: io.kestra.plugin.core.runner.Process
-    inputFiles: '{{ outputs["extract_files"]["outputFiles"] }}'
-    commands:
-      - ls | grep .json
-
-  - id: process_file
-    type: io.kestra.plugin.scripts.shell.Commands
-    taskRunner:
-      type: io.kestra.plugin.core.runner.Process
-    inputFiles: '{{ outputs["extract_files"]["outputFiles"] }}'
+    inputFiles: '{{ outputs["process_file"]["outputFiles"] }}'
     commands: 
-      - head -n 10 kestra/process_gh_archive_events.py
+      - ls data/
+
+  # - id: loop_processed_data
+  #   type: io.kestra.plugin.core.flow.ForEach
+  #   description: Loop through each file and process it
+  #   value: "{{outputs.list_files.files}}"
+  #   tasks:
+  #     - id: process_file
+  #       type: io.kestra.plugin.scripts.shell.Commands
+  #       description: Process each file
+  #       commands:
+  #         - echo "Processing file: {{each.value.uri}}"
+
+  # - id: upload_to_gcs
+  #   type: io.kestra.plugin.gcp.gcs.Upload
+  #   from: "{{render(vars.data)}}"
+  #   to: "{{render(vars.gcs_file)}}"
 
   - id: purge_files
     type: io.kestra.plugin.core.storage.PurgeCurrentExecutionFiles
