@@ -51,6 +51,7 @@ def write_events_by_type(events, output_dir, file_date):
     
     logger.info(f"Events properly classified. Writing to their respective directories")
 
+    output = []
     files_processed = {}
     for i, (event_type, events) in enumerate(events_by_type.items()):      
         type_dir = os.path.join(output_dir, event_type)
@@ -73,14 +74,12 @@ def write_events_by_type(events, output_dir, file_date):
             file.write(f"{event_type_file_path}\n")
 
         # Prepare an easily itrable output for kestra
-        files_processed[event_type] = {
+        event_type = {
             "base_directory": output_dir,
             "filename": event_type_file,
         }
 
-    output = {
-        "data": files_processed
-    }
+        output.append(event_type)
 
     logger.info(f"All files processed!")
     Kestra.outputs(output)
