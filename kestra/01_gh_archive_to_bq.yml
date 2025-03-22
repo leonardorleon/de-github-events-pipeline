@@ -104,12 +104,30 @@ tasks:
       - id: upload_to_bq
         type: io.kestra.plugin.gcp.bigquery.Query
         sql: |
-          CREATE OR REPLACE EXTERNAL TABLE `{{ kv('GCP_PROJECT_ID') }}.{{ kv('BQ_DATASET') }}.{{fromJson(taskrun.value).event_type }}_ext`
+          CREATE OR REPLACE EXTERNAL TABLE `{{ kv('GCP_PROJECT_ID') }}.{{ kv('GCP_DATASET') }}.{{fromJson(taskrun.value).event_type }}_ext`
           OPTIONS (
             format = 'JSON',
-            uris = ["gs://{{kv('GCP_BUCKET_NAME')}}/{{ fromJson(taskrun.value).base_directory }}/{{ render(vars.file_date) }}/{{ fromJson(taskrun.value).filename }}"],
-            auto_detect = TRUE
+            uris = ["gs://{{kv('GCP_BUCKET_NAME')}}/{{ fromJson(taskrun.value).base_directory }}/{{ render(vars.file_date) }}/{{ fromJson(taskrun.value).filename }}"]
           );
+
+      - id: create_main_tables
+        type: io.kestra.plugin.gcp.bigquery.Query
+        sql: |
+          CREATE TABLE IF NOT EXISTS `{{ kv('GCP_PROJECT_ID') }}.{{ kv('GCP_DATASET') }}.{{fromJson(taskrun.value).event_type }}`
+          AS SELECT * FROM `{{ kv('GCP_PROJECT_ID') }}.{{ kv('GCP_DATASET') }}.{{fromJson(taskrun.value).event_type }}_ext` WHERE 1=0;    
+
+      # - id: extract-schema
+      #   type: io.kestra.plugin.gcp.cli.GCloudCLI
+      #   description: Extract schema from the external table and create the main table
+      #   commands:
+      #     - bq show --format=prettyjson {{ kv('GCP_PROJECT_ID') }}.{{ kv('GCP_DATASET') }}.{{fromJson(taskrun.value).event_type }}_ext > {{fromJson(taskrun.value).event_type }}.json
+      #     - bq mk --table --schema={{fromJson(taskrun.value).event_type }}.json {{ kv('GCP_PROJECT_ID') }}.{{ kv('GCP_DATASET') }}.{{fromJson(taskrun.value).event_type }}
+
+      # - id: create-table
+      #   type: io.kestra.plugin.scripts.bash
+      #   description: Create a new BigQuery table using the extracted schema
+      #   commands:
+      #     - bq mk --table --schema=external_table_schema.json your_dataset.new_table
 
 
   - id: purge_files
