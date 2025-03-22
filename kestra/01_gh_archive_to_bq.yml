@@ -8,6 +8,13 @@ inputs:
     values: ['main','develop']
     defaults: 'develop'
     allowCustomValue: true
+
+  - id: events_date
+    type: STRING
+    displayName: Select the date to extract the events from (to ensure data is available, limit extraction to at least one day before current date)
+    defaults: "2016-02-02"
+    validator: "^\\d{4}-\\d{2}-\\d{2}$"
+    
   - id: events_hour
     type: SELECT
     displayName: Select the hour to extract events from
@@ -16,9 +23,9 @@ inputs:
     allowCustomValue: true
 
 variables:
-  date: "{{ trigger.date ?? execution.startDate | dateAdd(-1, 'DAYS') }}"
-  file_date: "{{ trigger.date ?? execution.startDate | dateAdd(-1, 'DAYS') | date(format='yyyy-MM-dd')}}"
-  # file_hours: "{{ '{' }}{{inputs.start_hour}}..{{inputs.end_hour}}{{ '}' }}"
+  date: "{{ trigger.date | dateAdd(-1, 'DAYS') ?? inputs.events_date  }}"
+  file_date: "{{ trigger.date | dateAdd(-1, 'DAYS') | date(format='yyyy-MM-dd') ?? inputs.events_date}}"
+  file_hour: "{{ trigger.date | date(format='H') ?? inputs.events_hour }}"
   file_extension: ".json"
 
 tasks:
@@ -27,7 +34,7 @@ tasks:
     labels:
       environment: "{{ inputs.branch }}"
       file_date: "{{ render(vars.file_date) }}"
-      file_hours: "{{ render(vars.file_hours) }}"
+      file_hour: "{{ render(vars.file_hour) }}"
 
   # - id: working_directory
   #   type: io.kestra.plugin.core.flow.WorkingDirectory
@@ -39,47 +46,36 @@ tasks:
 
   - id: start_etl
     type: io.kestra.plugin.core.log.Log
-    message: "Executing extraction for date {{ render(vars.date) }} with files from: {{ render(vars.file_date )}}."
+    message: "Executing extraction for date {{ render(vars.date) }} with file from: {{ render(vars.file_date )}} and hour: {{ render(vars.file_hour) }}."
   
-  # - id: extract_files
-  #   type: io.kestra.plugin.scripts.shell.Commands
-  #   outputFiles:
-  #     - "*.json"
-  #   taskRunner:
-  #     type: io.kestra.plugin.core.runner.Process
-  #   # -q makes the execution quiet while -O- outputs the contents to stdout instead of a file, so we can pipe it to gunzip.
-  #   # gunzip > file.gz takes the piped data into the file
-  #   # note: in this case, the range function is inclusive on both ends
-  #   commands:
-  #     - wget -qO- "https://data.gharchive.org/{{ render(vars.file_date) }}-{{ i }}.json.gz" | gunzip > {{ render(vars.file_date) }}-{{ i }}.json
+  - id: extract_files
+    type: io.kestra.plugin.scripts.shell.Commands
+    outputFiles:
+      - "*.json"
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    # -q makes the execution quiet while -O- outputs the contents to stdout instead of a file, so we can pipe it to gunzip.
+    # gunzip > file.gz takes the piped data into the file
+    # note: in this case, the range function is inclusive on both ends
+    commands:
+      - wget -qO- "https://data.gharchive.org/{{ render(vars.file_date) }}-{{ render(vars.file_hour) }}.json.gz" 
+        | gunzip > {{ render(vars.file_date) }}-{{ render(vars.file_hour) }}.json
 
-  # - id: inspect_files
-  #   type: io.kestra.plugin.scripts.shell.Commands
-  #   taskRunner: 
-  #     type: io.kestra.plugin.core.runner.Process
-  #   inputFiles: '{{ outputs["extract_files"]["outputFiles"] }}'
-  #   outputFiles:
-  #     - "*.txt"
-  #   commands:
-  #     - |
-  #       filename=$(ls | grep .json)
-  #       echo "{{ filenames }}"
-  #   return:
-  #       filenames: "{{ filenames.split('\n')}}"
-  #     # - ls | grep .json
+  - id: inspect_file
+    type: io.kestra.plugin.scripts.shell.Commands
+    taskRunner: 
+      type: io.kestra.plugin.core.runner.Process
+    inputFiles: '{{ outputs["extract_files"]["outputFiles"] }}'
+    commands:
+      - ls | grep .json
 
-  # - id: process-files
-  #   type: io.kestra.plugin.core.flow.ForEach
-  #   values: "{{ outputs.inspect_files.outputFiles['downloaded_files.txt'].split('\n') }}"
-  #   tasks:
-  #     - id: process-file
-  #       type: io.kestra.plugin.core.log.Log
-  #       message: "{{taskrun.value}}"
-
-      # - id: process_events
-      #   type: io.kestra.plugin.scripts.python.Commands
-      #   commands:
-      #     - python kestra/process_gh_archive_events.py --input_file=
+  - id: process_file
+    type: io.kestra.plugin.scripts.shell.Commands
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    inputFiles: '{{ outputs["extract_files"]["outputFiles"] }}'
+    commands: 
+      - head -n 10 kestra/process_gh_archive_events.py
 
   - id: purge_files
     type: io.kestra.plugin.core.storage.PurgeCurrentExecutionFiles
@@ -88,5 +84,5 @@ tasks:
 triggers:
   - id: hourly_schedule
     type: io.kestra.plugin.core.trigger.Schedule
-    cron: "0 9 * * *"
+    cron: "0 * * * *"
     disabled: false
