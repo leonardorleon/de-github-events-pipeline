@@ -51,6 +51,7 @@ def write_events_by_type(events, output_dir, file_date):
     
     logger.info(f"Events properly classified. Writing to their respective directories")
 
+    files_processed = []
     for event_type, events in events_by_type.items():
         type_dir = os.path.join(output_dir, event_type)
 
@@ -59,10 +60,19 @@ def write_events_by_type(events, output_dir, file_date):
             os.makedirs(type_dir)
 
         event_type_file = f'{file_date}-{event_type}.json'
+        
+        event_type_file_path = os.path.join(type_dir, event_type_file)
 
-        with open(os.path.join(type_dir, event_type_file), 'w') as file:
+        files_processed.append(event_type_file_path)
+
+        with open(event_type_file_path, 'w') as file:
             logger.info(f"Writing {event_type_file} to {type_dir}")
             json.dump(events, file, indent=4)
+
+    logger.info(f"All files processed, writing list of files processed this run")
+    with open(os.path.join(output_dir,'last_processed_files.txt') , 'w') as file:
+        for file_path in files_processed:
+            file.write(f"{file_path}\n")
 
 
 def main(input_file, output_dir):
