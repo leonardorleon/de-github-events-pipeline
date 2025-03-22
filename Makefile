@@ -45,3 +45,18 @@ start:
 ## Stops all services in docker-compose
 stop:
 	docker-compose stop
+
+.PHONY: tf-plan
+## Plan the terraform actions
+tf-plan:
+	terraform -chdir=terraform/ plan
+
+.PHONY: tf-apply
+## Creates all necessary resources with terraform
+tf-apply:
+	terraform -chdir=terraform/ apply
+
+.PHONY: tf-destroy
+## creates all necessary resources with terraform
+tf-destroy:
+	terraform -chdir=terraform/ destroy

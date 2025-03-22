@@ -41,7 +41,7 @@ resource "google_storage_bucket" "data-lake-bucket" {
 
 # DWH
 # Ref: https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/bigquery_dataset
-resource "google_bigquery_dataset" "sunlit_dataset" {
+resource "google_bigquery_dataset" "gh_dataset" {
   dataset_id = var.bq_dataset
   project    = var.project
   location   = var.region
