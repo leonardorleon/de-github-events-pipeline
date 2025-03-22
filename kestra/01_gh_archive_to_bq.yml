@@ -86,21 +86,31 @@ tasks:
     commands: 
       - ls data/
 
-  # - id: loop_processed_data
-  #   type: io.kestra.plugin.core.flow.ForEach
-  #   description: Loop through each file and process it
-  #   value: "{{outputs.list_files.files}}"
-  #   tasks:
-  #     - id: process_file
-  #       type: io.kestra.plugin.scripts.shell.Commands
-  #       description: Process each file
-  #       commands:
-  #         - echo "Processing file: {{each.value.uri}}"
+  - id: loop_filepaths
+    type: io.kestra.plugin.core.flow.ForEach
+    values: '{{ outputs.process_file["vars"]["data"] | json}}'
+    tasks:
+      - id: upload_file_log
+        type: io.kestra.plugin.core.log.Log
+        message: >-
+          uploading {{ fromJson(taskrun.value).base_directory }}/{{fromJson(taskrun.value).event_type }}/{{ fromJson(taskrun.value).filename }}
+          to bucket {{ kv('GCP_BUCKET_NAME') }}."
 
-  # - id: upload_to_gcs
-  #   type: io.kestra.plugin.gcp.gcs.Upload
-  #   from: "{{render(vars.data)}}"
-  #   to: "{{render(vars.gcs_file)}}"
+      - id: upload_to_gcs
+        type: io.kestra.plugin.gcp.gcs.Upload
+        from: '{{ outputs.process_file.outputFiles[fromJson(taskrun.value).base_directory  ~ "/" ~ fromJson(taskrun.value).event_type  ~ "/" ~ fromJson(taskrun.value).filename ] }}'
+        to: "gs://{{kv('GCP_BUCKET_NAME')}}/{{ fromJson(taskrun.value).base_directory }}/{{ render(vars.file_date) }}/{{ fromJson(taskrun.value).filename }}"
+
+      - id: upload_to_bq
+        type: io.kestra.plugin.gcp.bigquery.Query
+        sql: |
+          CREATE OR REPLACE EXTERNAL TABLE `{{ kv('GCP_PROJECT_ID') }}.{{ kv('BQ_DATASET') }}.{{fromJson(taskrun.value).event_type }}_ext`
+          OPTIONS (
+            format = 'JSON',
+            uris = ["gs://{{kv('GCP_BUCKET_NAME')}}/{{ fromJson(taskrun.value).base_directory }}/{{ render(vars.file_date) }}/{{ fromJson(taskrun.value).filename }}"],
+            auto_detect = TRUE
+          );
+
 
   - id: purge_files
     type: io.kestra.plugin.core.storage.PurgeCurrentExecutionFiles
