@@ -31,7 +31,7 @@ services:
   kestra:
     image: kestra/kestra:latest
     env_file:
-      - env_file.env
+      - ../env_file.env
     pull_policy: always
     # Note that this setup with a root user is intended for development purpose.
     # Our base image runs without root, but the Docker Compose implementation needs root to access the Docker socket
@@ -76,3 +76,15 @@ services:
         condition: service_started
     networks:
       - network1
+
+  # Set up for DBT
+  dbt-bq:
+    build:
+      context: .
+      target: dbt-bigquery
+    image: dbt/bigquery
+    volumes:
+      - ..:/usr/app
+      - ~/.dbt/:/root/.dbt/
+      - ~/.google/credentials/google_credentials.json:/.google/credentials/google_credentials.json
+    network_mode: host

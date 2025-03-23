@@ -7,9 +7,10 @@
 *.env
 venv*
 
-# Ignore specific folders
+# Ignore specific folders - files
 data/
-
+2015-01-01-15.json
+2015-01-01-16.json
 
 ## Terraform
 # Local .terraform directories

@@ -20,6 +20,9 @@ github_repo_url=https://github.com/leonardorleon/de-github-events-pipeline
 github_token_path=~/.github/github_tokenb64.txt     # Make sure the token inside the file is base64
 github_username_path=~/.github/github_username.txt
 
+#--------- To fill manually ------------#
+
+
 # Extract the project id from the gcp credentials and generate unique identifiers
 echo "Reading gcp credentials and creating unique resource identifiers"
 

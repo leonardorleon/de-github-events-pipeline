@@ -26,25 +26,31 @@ help:
 	} \
 	{ lastLine = $$0 }' $(MAKEFILE_LIST)
 
+
+.PHONY: setup
+## Prepares the environment if needed using requirements.txt and also installs global requirements such as jq
+setup:
+	chmod +x setup.sh && ./setup.sh
+
 .PHONY: env
 ## Prepares env files and terraform tfvar files
 env:
-	./env_setup.sh
+	chmod +x env_setup.sh && ./env_setup.sh
 
 .PHONY: up
 ## Builds the base Docker image and starts Flink cluster
 up:
-	docker-compose up --build --remove-orphans
+	docker-compose -f docker_setup/docker-compose.yml up --build --remove-orphans
 
 .PHONY: start
 ## Starts all services in docker-compose
 start:
-	docker-compose start
+	docker-compose -f docker_setup/docker-compose.yml start
 
 .PHONY: stop
 ## Stops all services in docker-compose
 stop:
-	docker-compose stop
+	docker-compose -f docker_setup/docker-compose.yml stop
 
 .PHONY: tf-plan
 ## Plan the terraform actions
