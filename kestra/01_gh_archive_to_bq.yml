@@ -75,59 +75,18 @@ tasks:
           type: io.kestra.plugin.core.runner.Process
         commands:
           - python kestra/process_gh_archive_events.py --input_file={{ render(vars.file_date) }}-{{ render(vars.file_hour) }}{{ render(vars.file_extension )}} --output_dir=data
-        outputFiles: 
-          - "data/**"
+        # outputFiles: 
+        #   - "data/**"
 
-  - id: check_processed_files
-    type: io.kestra.plugin.scripts.shell.Commands
-    taskRunner:
-      type: io.kestra.plugin.core.runner.Process
-    inputFiles: '{{ outputs["process_file"]["outputFiles"] }}'
-    commands: 
-      - ls data/
+      - id: check_processed_files
+        type: io.kestra.plugin.scripts.shell.Commands
+        taskRunner:
+          type: io.kestra.plugin.core.runner.Process
+        # inputFiles: '{{ outputs["process_file"]["outputFiles"] }}'
+        commands: 
+          - ls data/
 
-  - id: loop_filepaths
-    type: io.kestra.plugin.core.flow.ForEach
-    values: '{{ outputs.process_file["vars"]["data"] | json}}'
-    tasks:
-      - id: upload_file_log
-        type: io.kestra.plugin.core.log.Log
-        message: >-
-          uploading {{ fromJson(taskrun.value).base_directory }}/{{fromJson(taskrun.value).event_type }}/{{ fromJson(taskrun.value).filename }}
-          to bucket {{ kv('GCP_BUCKET_NAME') }}."
-
-      - id: upload_to_gcs
-        type: io.kestra.plugin.gcp.gcs.Upload
-        from: '{{ outputs.process_file.outputFiles[fromJson(taskrun.value).base_directory  ~ "/" ~ fromJson(taskrun.value).event_type  ~ "/" ~ fromJson(taskrun.value).filename ] }}'
-        to: "gs://{{kv('GCP_BUCKET_NAME')}}/{{ fromJson(taskrun.value).base_directory }}/{{ render(vars.file_date) }}/{{ fromJson(taskrun.value).filename }}"
-
-      - id: upload_to_bq
-        type: io.kestra.plugin.gcp.bigquery.Query
-        sql: |
-          CREATE OR REPLACE EXTERNAL TABLE `{{ kv('GCP_PROJECT_ID') }}.{{ kv('GCP_DATASET') }}.{{fromJson(taskrun.value).event_type }}_ext`
-          OPTIONS (
-            format = 'JSON',
-            uris = ["gs://{{kv('GCP_BUCKET_NAME')}}/{{ fromJson(taskrun.value).base_directory }}/{{ render(vars.file_date) }}/{{ fromJson(taskrun.value).filename }}"]
-          );
-
-      - id: create_main_tables
-        type: io.kestra.plugin.gcp.bigquery.Query
-        sql: |
-          CREATE TABLE IF NOT EXISTS `{{ kv('GCP_PROJECT_ID') }}.{{ kv('GCP_DATASET') }}.{{fromJson(taskrun.value).event_type }}`
-          AS SELECT * FROM `{{ kv('GCP_PROJECT_ID') }}.{{ kv('GCP_DATASET') }}.{{fromJson(taskrun.value).event_type }}_ext` WHERE 1=0;    
-
-      # - id: extract-schema
-      #   type: io.kestra.plugin.gcp.cli.GCloudCLI
-      #   description: Extract schema from the external table and create the main table
-      #   commands:
-      #     - bq show --format=prettyjson {{ kv('GCP_PROJECT_ID') }}.{{ kv('GCP_DATASET') }}.{{fromJson(taskrun.value).event_type }}_ext > {{fromJson(taskrun.value).event_type }}.json
-      #     - bq mk --table --schema={{fromJson(taskrun.value).event_type }}.json {{ kv('GCP_PROJECT_ID') }}.{{ kv('GCP_DATASET') }}.{{fromJson(taskrun.value).event_type }}
-
-      # - id: create-table
-      #   type: io.kestra.plugin.scripts.bash
-      #   description: Create a new BigQuery table using the extracted schema
-      #   commands:
-      #     - bq mk --table --schema=external_table_schema.json your_dataset.new_table
+      # - id: upload_and_merge_to_bq
 
 
   - id: purge_files

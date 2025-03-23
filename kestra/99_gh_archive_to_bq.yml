@@ -1,0 +1,292 @@
+id: 99_gh_archive_to_bq
+namespace: prod
+
+inputs:
+  - id: branch
+    type: SELECT
+    displayName: Select the branch of the project to run
+    values: ['main','develop']
+    defaults: 'develop'
+    allowCustomValue: true
+
+  - id: events_date
+    type: STRING
+    displayName: Select the date to extract the events from (to ensure data is available, limit extraction to at least one day before current date)
+    defaults: "2016-02-02"
+    validator: "^\\d{4}-\\d{2}-\\d{2}$"
+    
+  - id: events_hour
+    type: SELECT
+    displayName: Select the hour to extract events from
+    values: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23']
+    defaults: '0'
+    allowCustomValue: true
+
+variables:
+  date: "{{ trigger.date | dateAdd(-1, 'DAYS') ?? inputs.events_date  }}"
+  file_date: "{{ trigger.date | dateAdd(-1, 'DAYS') | date(format='yyyy-MM-dd') ?? inputs.events_date}}"
+  file_hour: "{{ trigger.date | date(format='H') ?? inputs.events_hour }}"
+  file_extension: ".json"
+
+tasks:
+  - id: set_label
+    type: io.kestra.plugin.core.execution.Labels
+    labels:
+      environment: "{{ inputs.branch }}"
+      file_date: "{{ render(vars.file_date) }}"
+      file_hour: "{{ render(vars.file_hour) }}"
+
+  - id: working_directory
+    type: io.kestra.plugin.core.flow.WorkingDirectory
+    tasks:
+      - id: clone_repo
+        type: io.kestra.plugin.git.Clone
+        url: "{{ envs.github_url }}"
+        branch: "{{inputs.branch}}"
+
+      - id: start_etl
+        type: io.kestra.plugin.core.log.Log
+        message: "Executing extraction for date {{ render(vars.date) }} with file from: {{ render(vars.file_date )}} and hour: {{ render(vars.file_hour) }}."
+      
+      - id: extract_files
+        type: io.kestra.plugin.scripts.shell.Commands
+        # outputFiles:
+        #   - "*.json"
+        taskRunner:
+          type: io.kestra.plugin.core.runner.Process
+        # -q makes the execution quiet while -O- outputs the contents to stdout instead of a file, so we can pipe it to gunzip.
+        # gunzip > file.gz takes the piped data into the file
+        # note: in this case, the range function is inclusive on both ends
+        commands:
+          - wget -qO- "https://data.gharchive.org/{{ render(vars.file_date) }}-{{ render(vars.file_hour) }}{{ render(vars.file_extension )}}.gz" 
+            | gunzip > {{ render(vars.file_date) }}-{{ render(vars.file_hour) }}{{ render(vars.file_extension )}}
+
+      - id: inspect_file
+        type: io.kestra.plugin.scripts.shell.Commands
+        taskRunner: 
+          type: io.kestra.plugin.core.runner.Process
+        # inputFiles: '{{ outputs["extract_files"]["outputFiles"] }}'
+        commands:
+          - ls | grep .json
+
+      - id: process_file
+        type: io.kestra.plugin.scripts.python.Commands
+        taskRunner: 
+          type: io.kestra.plugin.core.runner.Process
+        commands:
+          - python kestra/process_gh_archive_events.py --input_file={{ render(vars.file_date) }}-{{ render(vars.file_hour) }}{{ render(vars.file_extension )}} --output_dir=data
+        outputFiles: 
+          - "data/**"
+
+  - id: check_processed_files
+    type: io.kestra.plugin.scripts.shell.Commands
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    inputFiles: '{{ outputs["process_file"]["outputFiles"] }}'
+    commands: 
+      - ls data/
+
+  - id: loop_filepaths
+    type: io.kestra.plugin.core.flow.ForEach
+    values: '{{ outputs.process_file["vars"]["data"] | json}}'
+    tasks:
+      - id: upload_file_log
+        type: io.kestra.plugin.core.log.Log
+        message: >-
+          uploading {{ fromJson(taskrun.value).base_directory }}/{{fromJson(taskrun.value).event_type }}/{{ fromJson(taskrun.value).filename }}
+          to bucket {{ kv('GCP_BUCKET_NAME') }}.
+
+      # - id: upload_to_gcs
+      #   type: io.kestra.plugin.gcp.gcs.Upload
+      #   from: '{{ outputs.process_file.outputFiles[fromJson(taskrun.value).base_directory  ~ "/" ~ fromJson(taskrun.value).event_type  ~ "/" ~ fromJson(taskrun.value).filename ] }}'
+      #   to: "gs://{{kv('GCP_BUCKET_NAME')}}/{{ fromJson(taskrun.value).base_directory }}/{{ render(vars.file_date) }}/{{ fromJson(taskrun.value).filename }}"
+
+      # - id: upload_to_bq
+      #   type: io.kestra.plugin.gcp.bigquery.Query
+      #   sql: |
+      #     CREATE OR REPLACE EXTERNAL TABLE `{{ kv('GCP_PROJECT_ID') }}.{{ kv('GCP_DATASET') }}.{{fromJson(taskrun.value).event_type }}_ext`
+      #     OPTIONS (
+      #       format = 'JSON',
+      #       uris = ["gs://{{kv('GCP_BUCKET_NAME')}}/{{ fromJson(taskrun.value).base_directory }}/{{ render(vars.file_date) }}/{{ fromJson(taskrun.value).filename }}"]
+      #     );
+
+      # - id: create_main_tables
+      #   type: io.kestra.plugin.gcp.bigquery.Query
+      #   sql: |
+      #     CREATE TABLE IF NOT EXISTS `{{ kv('GCP_PROJECT_ID') }}.{{ kv('GCP_DATASET') }}.{{fromJson(taskrun.value).event_type }}`
+      #     PARTITION BY DATE(created_at)
+      #     AS SELECT * FROM `{{ kv('GCP_PROJECT_ID') }}.{{ kv('GCP_DATASET') }}.{{fromJson(taskrun.value).event_type }}_ext` WHERE 1=0;    
+
+      - id: get-source-schema
+        type: io.kestra.plugin.gcp.bigquery.Query
+        sql: |
+          SELECT TO_JSON_STRING(STRUCT(column_name))
+          FROM `{{ kv('GCP_PROJECT_ID') }}.{{ kv('GCP_DATASET') }}.INFORMATION_SCHEMA.COLUMNS`
+          WHERE table_name = '{{fromJson(taskrun.value).event_type }}_ext'
+        fetchType: STORE
+
+      - id: log_content
+        type: io.kestra.plugin.core.log.Log
+        message: "schema: {{ outputs['get-source-schema'][taskrun.value].uri }}"
+
+
+      - id: generate-merge-sql
+        type: io.kestra.plugin.scripts.python.Script
+        inputFiles:
+          source_schema.json: "{{ outputs['get-source-schema'][taskrun.value].uri }}"
+        outputFiles:
+          - "merge.sql"
+        script: |
+          import json
+
+          # # try reading as a string
+          # source_schema = json.loads("{{ json(read(outputs['get-source-schema'][taskrun.value].uri)) }} ")
+          
+          # print("{{ read(outputs['get-source-schema'][taskrun.value].uri) }}")
+
+          # print("Schema:", source_schema)
+
+          # Read the raw content of the file
+          with open("source_schema.json", "r") as f:
+              raw_content = f.readlines()  # Read line-by-line
+
+          # Debugging step: Print the raw content
+          print("Raw Content:", raw_content)
+                    
+          # print(test)
+
+          # print("Raw File Content:", raw_content)  # Debugging Output
+          # # Try to parse it
+          # try:
+          #     source_schema = json.loads(raw_content)
+          # except json.JSONDecodeError as e:
+          #     print("JSON Decode Error:", str(e))
+          #     source_schema = []  # Set a default empty list to avoid further issues
+          
+          # # Load schema from the file
+          # with open("source_schema.json", "r") as f:
+          #     source_schema = json.load(f)
+
+          # print("Schema Type:", type(source_schema))  # Debugging output
+          # print("Schema Content:", source_schema)
+
+          # print(type(source_schema))
+          # print(source_schema)
+
+          # source_columns = [col['column_name'] for col in source_schema]
+
+          # update_clause = ", ".join([f"target.{col} = source.{col}" for col in source_columns])
+          # insert_columns = ", ".join(source_columns)
+          # insert_values = ", ".join([f"source.{col}" for col in source_columns])
+
+          # merge_sql = f"""
+          # MERGE INTO `{{ kv('GCP_PROJECT_ID') }}.{{ kv('GCP_DATASET') }}.{{fromJson(taskrun.value).event_type }}` AS target
+          # USING `{{ kv('GCP_PROJECT_ID') }}.{{ kv('GCP_DATASET') }}.{{fromJson(taskrun.value).event_type }}_ext` AS source
+          # ON target.id = source.id
+          # WHEN MATCHED THEN
+          #   UPDATE SET {update_clause}
+          # WHEN NOT MATCHED THEN
+          #   INSERT ({insert_columns})
+          #   VALUES ({insert_values});
+          # """
+
+          # with open('merge.sql', 'w') as f:
+          #     f.write(merge_sql)
+
+
+      # - id: generate-merge-sql
+      #   type: io.kestra.plugin.scripts.python.Script
+      #   beforeCommands:
+      #     - pip install google-cloud-bigquery
+      #   outputFiles:
+      #     - "merge.sql"
+      #   script: |
+      #     from google.cloud import bigquery
+      #     import os
+
+      #     # Set up BigQuery client
+      #     client = bigquery.Client()
+
+      #     # Define the query to get the column names
+      #     project_id = "{{ kv('GCP_PROJECT_ID') }}"
+      #     dataset_id = "{{ kv('GCP_DATASET') }}"
+      #     table_name = "{{fromJson(taskrun.value).event_type }}"
+
+      #     query = f"""
+      #     SELECT column_name
+      #     FROM `{project_id}.{dataset_id}.INFORMATION_SCHEMA.COLUMNS`
+      #     WHERE table_name = '{table_name}'
+      #     """
+
+      #     # Run the query
+      #     query_job = client.query(query)
+      #     results = query_job.result()
+
+      #     # Get the column names
+      #     source_columns = [row.column_name for row in results]
+
+      #     update_clause = ", ".join([f"target.{col} = source.{col}" for col in source_columns])
+      #     insert_columns = ", ".join(source_columns)
+      #     insert_values = ", ".join([f"source.{col}" for col in source_columns])
+
+      #     merge_sql = f"""
+      #     MERGE INTO `{project_id}.{dataset_id}.{table_name}` AS target
+      #     USING `{project_id}.{dataset_id}.{table_name}_ext` AS source
+      #     ON target.id = source.id
+      #     WHEN MATCHED THEN
+      #       UPDATE SET {update_clause}
+      #     WHEN NOT MATCHED THEN
+      #       INSERT ({insert_columns})
+      #       VALUES ({insert_values});
+      #     """
+
+      #     with open('merge.sql', 'w') as f:
+      #         f.write(merge_sql)
+
+
+
+      # - id: log_merge_statement
+      #   type: io.kestra.plugin.core.log.Log
+      #   message: >-
+      #     merge_statement: {{ outputs.generate-merge-sql.files['merge.sql'] }}
+
+      # - id: execute-merge
+      #   type: io.kestra.plugin.gcp.bigquery.Query
+      #   sql: "{{ outputs.generate-merge-sql.files['merge.sql'] }}"
+      #   fetch: false
+
+
+      # - id: merge_to_main_tables
+      #   type: io.kestra.plugin.gcp.bigquery.Query
+      #   sql: |
+      #     MERGE INTO `{{ kv('GCP_PROJECT_ID') }}.{{ kv('GCP_DATASET') }}.{{fromJson(taskrun.value).event_type }}` T
+      #     USING `{{ kv('GCP_PROJECT_ID') }}.{{ kv('GCP_DATASET') }}.{{fromJson(taskrun.value).event_type }}_ext` S
+      #     ON T.id = S.id
+      #     WHEN NOT MATCHED THEN 
+      #       INSERT
+      #       VALUES
+      #     ; 
+
+      # - id: extract-schema
+      #   type: io.kestra.plugin.gcp.cli.GCloudCLI
+      #   description: Extract schema from the external table and create the main table
+      #   commands:
+      #     - bq show --format=prettyjson {{ kv('GCP_PROJECT_ID') }}.{{ kv('GCP_DATASET') }}.{{fromJson(taskrun.value).event_type }}_ext > {{fromJson(taskrun.value).event_type }}.json
+      #     - bq mk --table --schema={{fromJson(taskrun.value).event_type }}.json {{ kv('GCP_PROJECT_ID') }}.{{ kv('GCP_DATASET') }}.{{fromJson(taskrun.value).event_type }}
+
+      # - id: create-table
+      #   type: io.kestra.plugin.scripts.bash
+      #   description: Create a new BigQuery table using the extracted schema
+      #   commands:
+      #     - bq mk --table --schema=external_table_schema.json your_dataset.new_table
+
+
+  - id: purge_files
+    type: io.kestra.plugin.core.storage.PurgeCurrentExecutionFiles
+    description: To avoid cluttering, we will remove the downloaded files. Although mostly they should be in the temporary working directory.
+
+triggers:
+  - id: hourly_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 * * * *"
+    disabled: false
