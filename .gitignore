@@ -8,6 +8,8 @@
 venv*
 
 # Ignore specific folders - files
+.vscode/*
+__pycache__
 data/
 2015-01-01-15.json
 2015-01-01-16.json

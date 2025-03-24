@@ -2,11 +2,12 @@ import json
 import os
 import argparse
 from kestra import Kestra
+from utils import upload_to_gcs
 
 
-def read_json_file(file_path):
+def extract_events_from_json(file_path):
     """
-    Reads a JSON file where each line is a separate JSON object and returns a list of events.
+    Reads a Github events JSON file where each line is a separate JSON object and returns a list of events.
 
     Args:
         file_path (str): The path to the JSON file to be read.
@@ -24,16 +25,18 @@ def read_json_file(file_path):
     return events
 
 
-def write_events_by_type(events, output_dir, file_date):
+def extract_events_by_type(events, output_dir, file_name):
     """
     Takes an array of events and separates them according to their event type. 
-    It writes them to a directory for their corresponding event type
+    It writes them to a directory for their corresponding event type.
 
     Args:
-        file_path (str): The path to the JSON file to be read.
+        events (list): A list of events, where each event is a dictionary representing a JSON object.
+        output_dir (str): The path to the directory where the output files should be saved.
+        file_name (str): The date and hour string extracted from the input file name to be used in the output file names.
 
     Returns:
-        None. But outputs through kestra 
+        an array containing the paths for the processed files
     """
     if not os.path.exists(output_dir):
         logger.info(f"Output dir does not exist. Creating: {output_dir}")
@@ -51,7 +54,7 @@ def write_events_by_type(events, output_dir, file_date):
     
     logger.info(f"Events properly classified. Writing to their respective directories")
 
-    output = []
+    event_type_paths = []
     for i, (event_type, events) in enumerate(events_by_type.items()):      
         type_dir = os.path.join(output_dir, event_type)
 
@@ -59,7 +62,7 @@ def write_events_by_type(events, output_dir, file_date):
             logger.info(f"{type_dir} does not exist. Creating directory")
             os.makedirs(type_dir)
 
-        event_type_file = f'{file_date}-{event_type}.json'
+        event_type_file = f'{file_name}-{event_type}.json'
         
         event_type_file_path = os.path.join(type_dir, event_type_file)
 
@@ -73,17 +76,10 @@ def write_events_by_type(events, output_dir, file_date):
         with open(os.path.join(output_dir,'last_processed_files.txt'), mode ) as file:
             file.write(f"{event_type_file_path}\n")
 
-        # Prepare an easily iterable output for kestra
-        payload = {
-            "base_directory": output_dir,
-            "event_type": event_type,
-            "filename": event_type_file
-        }
-
-        output.append(payload)
+        event_type_paths.append(event_type_file_path)
 
     logger.info(f"All files processed!")
-    Kestra.outputs({"data":output})
+    return event_type_paths
 
 
 def main(input_file, output_dir):
@@ -97,11 +93,43 @@ def main(input_file, output_dir):
     Returns:
         None
     """
-    events = read_json_file(input_file)
 
-    file_date = input_file.split('.')[0]
+    # Define values from environment variables
+    bucket_name = os.getenv('GCP_BUCKET_NAME')
+    if not bucket_name:
+        raise ValueError("GCP_BUCKET_NAME environment variable is not set")
+    
+    project_id = os.getenv('GCP_PROJECT_ID')
+    if not project_id:
+        raise ValueError("GCP_PROJECT_ID environment variable is not set")
+    
+    dataset = os.getenv('GCP_DATASET')
+    if not dataset:
+        raise ValueError("GCP_DATASET environment variable is not set")
 
-    write_events_by_type(events, output_dir, file_date)
+
+    logger.info("STEP 1: Extract events")
+    events = extract_events_from_json(input_file)
+
+    file_name = input_file.split('.')[0]
+    file_date = file_name.rsplit('-',1)[0]
+
+    logger.info("STEP 2: Classify events by their type")
+    event_paths = extract_events_by_type(events, output_dir, file_name)
+
+
+    logger.info("STEP 3: Go through each event type, upload to datalake and ingest to BigQuery")
+    for path in event_paths:
+        base_dir, event_type, filename = path.split("/")
+        
+        # Upload data to data lake
+        destination_blob_name = f"{base_dir}/{file_date}/{filename}"
+        upload_to_gcs(bucket_name, path, destination_blob_name)
+
+        logger.info(f"Uploaded {event_type} to {destination_blob_name} in GCS")
+
+        # Ensure staging tables exist
+        
 
 if __name__ == "__main__":
     
