@@ -121,9 +121,6 @@ def main(input_file, output_dir):
     logger.info("STEP 3: Go through each event type, upload to datalake and ingest to BigQuery")
     for path in event_paths:
         base_dir, event_type, filename = path.split("/")
-        
-        if event_type != "WatchEvent":
-            continue
 
         # Upload data to data lake
         destination_blob_name = f"{base_dir}/{file_date}/{filename}"
@@ -149,9 +146,6 @@ def main(input_file, output_dir):
                                 ,source_table_id=ext_table_id
                                 ,target_table_id=event_type
                                 ,unique_key="id")
-        
-        print(event_type)
-
 
 
 if __name__ == "__main__":

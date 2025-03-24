@@ -25,7 +25,7 @@ def upload_to_gcs(bucket_name, source_file_name, destination_blob_name):
 
 def create_external_table(project_id, dataset_id, table_id, gcs_uri, source_format):
     """
-    Creates an external table in BigQuery. For this use case, autodetect is set to True
+    Creates or replaces an external table in BigQuery. For this use case, autodetect is set to True.
 
     Args:
         project_id (str): The GCP project ID.
@@ -48,9 +48,10 @@ def create_external_table(project_id, dataset_id, table_id, gcs_uri, source_form
     table = bigquery.Table(table_ref)
     table.external_data_configuration = external_config
 
-    client.create_table(table, exists_ok=True)
+    client.delete_table(table_ref, not_found_ok=True)  # Delete the table if it exists
+    client.create_table(table)  # Create the table
 
-    print(f"Created external table {table_id} in dataset {dataset_id}")
+    print(f"Created or replaced external table {table_id} in dataset {dataset_id}")
 
 
 def create_staging_table(project_id, dataset_id, table_id):
