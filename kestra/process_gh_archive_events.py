@@ -2,7 +2,7 @@ import json
 import os
 import argparse
 from kestra import Kestra
-from utils import upload_to_gcs
+from utils import upload_to_gcs, create_external_table, create_staging_table, perform_merge_statement
 
 
 def extract_events_from_json(file_path):
@@ -122,14 +122,37 @@ def main(input_file, output_dir):
     for path in event_paths:
         base_dir, event_type, filename = path.split("/")
         
+        if event_type != "WatchEvent":
+            continue
+
         # Upload data to data lake
         destination_blob_name = f"{base_dir}/{file_date}/{filename}"
         upload_to_gcs(bucket_name, path, destination_blob_name)
 
         logger.info(f"Uploaded {event_type} to {destination_blob_name} in GCS")
 
-        # Ensure staging tables exist
+        # Create external table
+        gcs_uri = f"gs://{bucket_name}/{destination_blob_name}"
+        ext_table_id = f"{event_type}_ext"
+        config = "NEWLINE_DELIMITED_JSON" 
+        create_external_table(project_id, dataset, ext_table_id, gcs_uri, config)
+
+        logger.info(f"Created {ext_table_id} from {gcs_uri} in GCS")
+
+        # Ensure main tables exist
+        create_staging_table(project_id, dataset, event_type)
+        logger.info(f"Staging table {event_type} exists")
+
+        # Perform a merge into the staging table
+        perform_merge_statement(project_id=project_id
+                                ,dataset_id=dataset
+                                ,source_table_id=ext_table_id
+                                ,target_table_id=event_type
+                                ,unique_key="id")
         
+        print(event_type)
+
+
 
 if __name__ == "__main__":
     
