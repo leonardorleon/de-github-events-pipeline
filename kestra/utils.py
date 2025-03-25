@@ -1,5 +1,6 @@
-from google.cloud import storage
-from google.cloud import bigquery
+import logging
+from google.cloud import storage, bigquery
+from google.api_core.exceptions import BadRequest
 
 
 def upload_to_gcs(bucket_name, source_file_name, destination_blob_name):
@@ -20,7 +21,7 @@ def upload_to_gcs(bucket_name, source_file_name, destination_blob_name):
 
     blob.upload_from_filename(source_file_name)
 
-    print(f"File {source_file_name} uploaded to {destination_blob_name}.")
+    logging.info(f"File {source_file_name} uploaded to {destination_blob_name}.")
 
 
 def create_external_table(project_id, dataset_id, table_id, gcs_uri, source_format):
@@ -51,7 +52,7 @@ def create_external_table(project_id, dataset_id, table_id, gcs_uri, source_form
     client.delete_table(table_ref, not_found_ok=True)  # Delete the table if it exists
     client.create_table(table)  # Create the table
 
-    print(f"Created or replaced external table {table_id} in dataset {dataset_id}")
+    logging.info(f"Created or replaced external table {table_id} in dataset {dataset_id}")
 
 
 def create_staging_table(project_id, dataset_id, table_id):
@@ -68,15 +69,18 @@ def create_staging_table(project_id, dataset_id, table_id):
     """
     client = bigquery.Client(project=project_id)
     dataset_ref = client.dataset(dataset_id)
-
-    query = f"""
-    CREATE TABLE IF NOT EXISTS `{project_id}.{dataset_id}.{table_id}`
-    PARTITION BY DATE(created_at)
-    AS SELECT * FROM `{project_id}.{dataset_id}.{table_id}_ext` WHERE 1=0;
-    """
-    query_job = client.query(query)
-    query_job.result()  # Wait for the job to complete
-    print(f"Ensured {table_id} exists in BigQuery")
+    try:
+        query = f"""
+        CREATE TABLE IF NOT EXISTS `{project_id}.{dataset_id}.{table_id}`
+        PARTITION BY DATE(created_at)
+        AS SELECT * FROM `{project_id}.{dataset_id}.{table_id}_ext` WHERE 1=0;
+        """
+        query_job = client.query(query)
+        query_job.result()  # Wait for the job to complete
+        logging.info(f"Ensured {table_id} exists in BigQuery")
+    except BadRequest as e:
+        logging.error(f"Error creating staging table: {table_id}, data contains the wrong format")
+        exit()
 
 
 def get_column_names(client, project_id, dataset_id, table_id):
@@ -132,7 +136,11 @@ def perform_merge_statement(project_id, dataset_id, source_table_id, target_tabl
       VALUES ({values_string});
     """
 
+    logging.info("Performing merge statement...")
+
     query_job = client.query(merge_statement)
     query_job.result()  # Wait for the job to complete
+
+    logging.info("Merge statement completed...")
 
     return merge_statement

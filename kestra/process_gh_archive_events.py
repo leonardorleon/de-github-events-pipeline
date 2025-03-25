@@ -50,6 +50,11 @@ def extract_events_by_type(events, output_dir, file_name):
         # initiate the array for each event type key as they appear
         if event_type not in events_by_type:
             events_by_type[event_type] = []
+        
+        # clean empty payload fields
+        if isinstance(event.get("payload"), dict) and not event["payload"]:
+            event["payload"] = None
+
         events_by_type[event_type].append(event)
     
     logger.info(f"Events properly classified. Writing to their respective directories")
