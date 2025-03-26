@@ -2,7 +2,7 @@ import json
 import os
 import argparse
 from kestra import Kestra
-from utils import upload_to_gcs, create_external_table, create_staging_table, perform_merge_statement
+from utils import upload_to_gcs, create_external_table, perform_merge_statement, create_table_with_json_schema
 
 
 def extract_events_from_json(file_path):
@@ -51,9 +51,19 @@ def extract_events_by_type(events, output_dir, file_name):
         if event_type not in events_by_type:
             events_by_type[event_type] = []
         
-        # clean empty payload fields
-        if isinstance(event.get("payload"), dict) and not event["payload"]:
-            event["payload"] = None
+        # Process payload, clean empty payloads and others set to string
+        if isinstance(event.get("payload"), dict):
+            if not event["payload"]:
+                event["payload"] = None
+            else:
+                event["payload"] = json.dumps(event["payload"])
+        
+        # Clean "other" in the same way as payload
+        if isinstance(event.get("other"), dict):
+            if not event["other"]:
+                event["other"] = None
+            else:
+                event["other"] = json.dumps(event["other"])
 
         events_by_type[event_type].append(event)
     
@@ -112,6 +122,7 @@ def main(input_file, output_dir):
     if not dataset:
         raise ValueError("GCP_DATASET environment variable is not set")
 
+    schema_file_path = "kestra/schema.json"
 
     logger.info("STEP 1: Extract events")
     events = extract_events_from_json(input_file)
@@ -127,6 +138,9 @@ def main(input_file, output_dir):
     for path in event_paths:
         base_dir, event_type, filename = path.split("/")
 
+        if event_type != "PullRequestEvent":
+            continue
+
         # Upload data to data lake
         destination_blob_name = f"{base_dir}/{file_date}/{filename}"
         upload_to_gcs(bucket_name, path, destination_blob_name)
@@ -137,12 +151,27 @@ def main(input_file, output_dir):
         gcs_uri = f"gs://{bucket_name}/{destination_blob_name}"
         ext_table_id = f"{event_type}_ext"
         config = "NEWLINE_DELIMITED_JSON" 
-        create_external_table(project_id, dataset, ext_table_id, gcs_uri, config)
+
+        create_external_table(project_id, 
+                              dataset, 
+                              ext_table_id, 
+                              gcs_uri, 
+                              config, 
+                              schema_file_path=schema_file_path) # TODO: replace
 
         logger.info(f"Created {ext_table_id} from {gcs_uri} in GCS")
 
         # Ensure main tables exist
-        create_staging_table(project_id, dataset, event_type)
+        # create_staging_table(project_id, dataset, event_type) # TODO: replace
+
+        create_table_with_json_schema(project_id=project_id,
+                                      dataset_id=dataset,
+                                      table_id=event_type,
+                                      schema_file_path=schema_file_path,
+                                      delete_if_exists=False,
+                                      partition_field="created_at")
+
+
         logger.info(f"Staging table {event_type} exists")
 
         # Perform a merge into the staging table
@@ -150,7 +179,8 @@ def main(input_file, output_dir):
                                 ,dataset_id=dataset
                                 ,source_table_id=ext_table_id
                                 ,target_table_id=event_type
-                                ,unique_key="id")
+                                ,unique_key="id"
+                                ,schema_file_path=schema_file_path)
 
 
 if __name__ == "__main__":
