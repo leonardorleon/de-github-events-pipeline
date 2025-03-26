@@ -138,8 +138,8 @@ def main(input_file, output_dir):
     for path in event_paths:
         base_dir, event_type, filename = path.split("/")
 
-        if event_type != "PullRequestEvent":
-            continue
+        # if event_type != "PullRequestEvent":
+        #     continue
 
         # Upload data to data lake
         destination_blob_name = f"{base_dir}/{file_date}/{filename}"
