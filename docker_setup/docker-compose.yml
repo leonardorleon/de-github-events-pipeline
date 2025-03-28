@@ -83,6 +83,8 @@ services:
       context: .
       target: dbt-bigquery
     image: dbt/bigquery
+    env_file:
+      - ../env_file.env
     volumes:
       - ..:/usr/app
       - ~/.dbt/:/root/.dbt/

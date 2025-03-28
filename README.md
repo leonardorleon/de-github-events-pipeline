@@ -92,8 +92,58 @@ bq-dbt-project:
       type: bigquery
 ```
 
-In the dockerfile, I've set up the entrypoint as `bash`, so the container can continue running in the background and we can access it interactively to be able to run dbt commands. To get the dev environment set up, follow these actions:
+To get the dev environment set up, follow these actions (keep in mind at this point the entrypoint in the dockerfile is `dbt`):
 
 * `docker-compose -f docker_setup/docker-compose.yml build`
-* `docker-compose -f docker_setup/docker-compose.yml run dbt-bq dbt init --client gh_events --profile bq-dbt-project`
+* `docker-compose -f docker_setup/docker-compose.yml run dbt-bq init`
+
+  After this command, dbt will ask a few questions. The most importants are
+    
+    * project name: gh_events
+    * profile name: bq-dbt-project
+
+If you already have an existing profile which you want to use, simply go to [dbt_project.yml](dbt/gh_events/dbt_project.yml) and set your profile there: `profile: 'bq-dbt-project'`
+
+Now, there are a few ways to make the container work. One of them is the following command:
+
 * `docker-compose -f docker_setup/docker-compose.yml run --workdir="//usr/app/dbt/gh_events" dbt-bq dbt debug`
+
+However, this is a bit cumbersome, so I've decided to just run the container in interactive mode, that way I don't need to run a long command everytime and spin up the container each time I want to run a command. 
+
+### Run in interactive mode
+
+At this point, I've set up the entrypoint in the dockerfile to `bash`, so we need to build the container again `docker-compose -f docker_setup/docker-compose.yml build`
+
+and we can run the container by running `docker-compose -f docker_setup/docker-compose.yml run -it --workdir="//usr/app/dbt/gh_events" dbt-bq`
+
+This will open the container in interactive mode and keep it open, so we can simply run dbt commands there, such as `dbt debug` to confirm it all works properly.
+
+We can of course, access the container again once it is running by running `docker exec -it [container id] sh`
+
+To make it even easier, I'm setting up a make command to start the dbt container in the [Makefile](Makefile)
+
+
+### Facilitate working with DBT core
+
+The VScode dbt-power-user extension has many benefits when developing with dbt, and this can be used despite working on a container. We need but two things:
+
+* On the host computer, install the VScode extension: `Dev containers`
+* use `ctrl+shift+p` to find vscode commands and look for: `Dev containers: Attach to running container` to attach to the container running dbt. This will open a new vscode window with the full vscode functionality from the container
+* In the container window, install `dbt-power-user` extension from the vscode ui. In my case it didn't work out of the box, but that is due to a known issue which can be solved by:
+    * running `dbt debug` and finding the location of the python path that dbt uses. In my case it was: `python path: /usr/local/bin/python`
+    * In the vscode of the dbt container, select the python interpreter and choose a path, give it the one for dbt `/usr/local/bin/python`. After this, you should be able to use dbt power user features, including the lineage and easier model execution and documentation.
+
+![](images/00_example_dbt_lineage.png)
+
+
+So in short, the workflow is:
+
+* make up: will start kestra in the background. You can develop on the UI or simply let it work on the active triggers on it's own or via backfill
+* make dbt: will start the dbt container, which you can either attach to on the terminal or attach through vscode to use the dbt power user extension
+* make stop: will stop the containers in the docker-compose.yml
+
+
+### DBT Sources
+
+To get started with dbt, let's set up the sources which are ingested through kestra data orchestration. First, let's create a [sources.yml](dbt/gh_events/models/sources.yml) in the root of the models folder. Here we can either set up the databaset (project-id when working on bigquery) and the schema (dataset name when working with bigquery) via environment variables, or when it's not there by the backup. change it up if needed.
+

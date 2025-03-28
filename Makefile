@@ -52,6 +52,10 @@ start:
 stop:
 	docker-compose -f docker_setup/docker-compose.yml stop
 
+.PHONY: dbt
+dbt: 
+	docker-compose -f docker_setup/docker-compose.yml run -it --workdir="//usr/app/dbt/gh_events" dbt-bq
+
 .PHONY: tf-plan
 ## Plan the terraform actions
 tf-plan:

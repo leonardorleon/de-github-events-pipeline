@@ -60,3 +60,9 @@ echo "KESTRA_BQ_DATASET=$bq_dataset" >> env_file.env
 echo "KESTRA_GITHUB_URL=$github_repo_url" >> env_file.env
 echo "KESTRA_GITHUB_USERNAME=$github_user" >> env_file.env
 echo "SECRET_GITHUB_ACCESS_TOKEN=$github_token" >> env_file.env 
+
+
+# Create an env file that can be used by dbt
+
+echo "DBT_DATABASE=$project_id" >> env_file.env
+echo "DBT_SCHEMA=$bq_dataset" >> env_file.env 
