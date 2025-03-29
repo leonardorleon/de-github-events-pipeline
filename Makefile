@@ -38,7 +38,7 @@ env:
 	chmod +x env_setup.sh && ./env_setup.sh
 
 .PHONY: up
-## Builds the base Docker image and starts Flink cluster
+## Builds the base Docker image and starts kestra
 up:
 	docker-compose -f docker_setup/docker-compose.yml up --build --remove-orphans
 

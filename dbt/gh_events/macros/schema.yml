@@ -1,0 +1,9 @@
+version: 2
+
+macros:
+  - name: gh_event_main_fields
+    description: This macro generates a list of basic fields for GitHub events.
+    arguments:
+      - name: final
+        type: boolean
+        description: If true, omits the trailing comma after the last field.
