@@ -40,11 +40,11 @@
         "ODS_MEMBER_EVENTS": "MemberEvent",
         "ODS_PUBLIC_EVENTS": "PublicEvent",
         "ODS_PULL_REQUEST_EVENTS": "PullRequestEvent",
-        "ODS_PULL_REQUEST_REVIEW_COMMENT_EVENTS": "PullRequestReviewCommentEvent",
+        "ODS_PULL_REQUESTS_REVIEW_COMMENT_EVENTS": "PullRequestReviewCommentEvent",
         "ODS_PUSH_EVENTS": "PushEvent",
         "ODS_RELEASE_EVENTS": "ReleaseEvent",
         "ODS_WATCH_EVENTS": "WatchEvent"
     } -%}
 
-    {{ model_to_event_mapping.get(model.name, "UnknownEvent") }}
+    {{ model_to_event_mapping.get(model, "UnknownEvent") }}
 {%- endmacro %}
