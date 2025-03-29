@@ -2,6 +2,7 @@
   config(
     materialized = 'incremental',
     unique_key = 'id',
+    cluster_by = 'EVENT_TYPE',
     partition_by={
       "field": "CREATED_AT",
       "data_type": "timestamp",
