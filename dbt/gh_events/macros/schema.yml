@@ -7,3 +7,27 @@ macros:
       - name: final
         type: boolean
         description: If true, omits the trailing comma after the last field.
+  - name: get_event_type
+    description: This macro maps a model name to its corresponding GitHub event type.
+    arguments:
+      - name: model
+        type: string
+        description: The model name to map to a GitHub event type.
+  - name: gh_event_repo_fields
+    description: This macro generates a list of repository-related fields for GitHub events.
+    arguments:
+      - name: final
+        type: boolean
+        description: If true, omits the trailing comma after the last field.
+  - name: gh_event_actor_fields
+    description: This macro generates a list of actor-related fields for GitHub events.
+    arguments:
+      - name: final
+        type: boolean
+        description: If true, omits the trailing comma after the last field.
+  - name: gh_event_org_fields
+    description: This macro generates a list of organization-related fields for GitHub events.
+    arguments:
+      - name: final
+        type: boolean
+        description: If true, omits the trailing comma after the last field.

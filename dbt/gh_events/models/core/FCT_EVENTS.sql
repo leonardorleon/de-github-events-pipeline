@@ -286,6 +286,7 @@ with unioned as (
 )
 
 SELECT
-    *
+    *,
+    CURRENT_TIMESTAMP()   AS LOAD_TIMESTAMP
 FROM unioned
 {# QUALIFY ROW_NUMBER() OVER (PARTITION BY ID ORDER BY CREATED_AT) = 1 #}

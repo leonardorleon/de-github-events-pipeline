@@ -14,7 +14,8 @@ SELECT
     -- select organization fields
     {{gh_event_org_fields()}}
 
-    PARSE_JSON(payload) as PAYLOAD_JSON
+    PARSE_JSON(payload) as PAYLOAD_JSON,
+    PARSE_JSON(JSON_EXTRACT(payload, '$.comment.user'))        as USER_JSON
 
 FROM {{ source('landing_zone', 'CommitCommentEvent') }}
 

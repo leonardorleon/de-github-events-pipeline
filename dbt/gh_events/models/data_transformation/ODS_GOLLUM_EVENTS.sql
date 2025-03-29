@@ -14,6 +14,7 @@ SELECT
     -- select organization fields
     {{gh_event_org_fields()}}
 
-    PARSE_JSON(payload) as PAYLOAD_JSON
+    PARSE_JSON(payload) as PAYLOAD_JSON,
+    CURRENT_TIMESTAMP()   AS LOAD_TIMESTAMP
 
 FROM {{ source('landing_zone', 'GollumEvent') }}
