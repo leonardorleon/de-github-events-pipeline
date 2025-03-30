@@ -36,46 +36,59 @@ tasks:
       file_date: "{{ render(vars.file_date) }}"
       file_hour: "{{ render(vars.file_hour) }}"
 
-  # - id: working_directory
-  #   type: io.kestra.plugin.core.flow.WorkingDirectory
-  #   tasks:
-  - id: clone_repo
-    type: io.kestra.plugin.git.Clone
-    url: "{{ envs.github_url }}"
-    branch: "{{inputs.branch}}"
+  - id: working_directory
+    type: io.kestra.plugin.core.flow.WorkingDirectory
+    tasks:
+      - id: clone_repo
+        type: io.kestra.plugin.git.Clone
+        url: "{{ envs.github_url }}"
+        branch: "{{inputs.branch}}"
 
-  - id: start_etl
-    type: io.kestra.plugin.core.log.Log
-    message: "Executing extraction for date {{ render(vars.date) }} with file from: {{ render(vars.file_date )}} and hour: {{ render(vars.file_hour) }}."
-  
-  - id: extract_files
-    type: io.kestra.plugin.scripts.shell.Commands
-    outputFiles:
-      - "*.json"
-    taskRunner:
-      type: io.kestra.plugin.core.runner.Process
-    # -q makes the execution quiet while -O- outputs the contents to stdout instead of a file, so we can pipe it to gunzip.
-    # gunzip > file.gz takes the piped data into the file
-    # note: in this case, the range function is inclusive on both ends
-    commands:
-      - wget -qO- "https://data.gharchive.org/{{ render(vars.file_date) }}-{{ render(vars.file_hour) }}.json.gz" 
-        | gunzip > {{ render(vars.file_date) }}-{{ render(vars.file_hour) }}.json
+      - id: start_etl
+        type: io.kestra.plugin.core.log.Log
+        message: "Executing extraction for date {{ render(vars.date) }} with file from: {{ render(vars.file_date )}} and hour: {{ render(vars.file_hour) }}."
+      
+      - id: extract_files
+        type: io.kestra.plugin.scripts.shell.Commands
+        # outputFiles:
+        #   - "*.json"
+        taskRunner:
+          type: io.kestra.plugin.core.runner.Process
+        # -q makes the execution quiet while -O- outputs the contents to stdout instead of a file, so we can pipe it to gunzip.
+        # gunzip > file.gz takes the piped data into the file
+        # note: in this case, the range function is inclusive on both ends
+        commands:
+          - wget -qO- "https://data.gharchive.org/{{ render(vars.file_date) }}-{{ render(vars.file_hour) }}{{ render(vars.file_extension )}}.gz" 
+            | gunzip > {{ render(vars.file_date) }}-{{ render(vars.file_hour) }}{{ render(vars.file_extension )}}
 
-  - id: inspect_file
-    type: io.kestra.plugin.scripts.shell.Commands
-    taskRunner: 
-      type: io.kestra.plugin.core.runner.Process
-    inputFiles: '{{ outputs["extract_files"]["outputFiles"] }}'
-    commands:
-      - ls | grep .json
+      - id: inspect_file
+        type: io.kestra.plugin.scripts.shell.Commands
+        taskRunner: 
+          type: io.kestra.plugin.core.runner.Process
+        # inputFiles: '{{ outputs["extract_files"]["outputFiles"] }}'
+        commands:
+          - ls | grep .json
 
-  - id: process_file
-    type: io.kestra.plugin.scripts.shell.Commands
-    taskRunner:
-      type: io.kestra.plugin.core.runner.Process
-    inputFiles: '{{ outputs["extract_files"]["outputFiles"] }}'
-    commands: 
-      - head -n 10 kestra/process_gh_archive_events.py
+      - id: upload_and_merge_to_bq
+        type: io.kestra.plugin.scripts.python.Commands
+        taskRunner: 
+          type: io.kestra.plugin.core.runner.Process
+        warningOnStdErr: false
+        env:
+          GCP_BUCKET_NAME: "{{ kv('GCP_BUCKET_NAME') }}"
+          GCP_PROJECT_ID: "{{ kv('GCP_PROJECT_ID') }}"
+          GCP_DATASET: "{{ kv('GCP_DATASET') }}"
+        beforeCommands:
+          - pip install --upgrade google-cloud-bigquery google-cloud-storage
+        commands:
+          - python kestra/process_gh_archive_events.py --input_file={{ render(vars.file_date) }}-{{ render(vars.file_hour) }}{{ render(vars.file_extension )}} --output_dir=data
+        # outputFiles: 
+        #   - "data/**"
+
+      - id: complete_log
+        type: io.kestra.plugin.core.log.Log
+        message: "Executing has completed for {{ render(vars.date) }} with file from: {{ render(vars.file_date )}} and hour: {{ render(vars.file_hour) }}."
+
 
   - id: purge_files
     type: io.kestra.plugin.core.storage.PurgeCurrentExecutionFiles
