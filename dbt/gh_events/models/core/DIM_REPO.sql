@@ -8,7 +8,7 @@
       "data_type": "timestamp",
       "granularity": "day"
     },
-    incremental_strategy = 'insert_overwrite'
+    incremental_strategy = 'merge'
     )
 }}
 
@@ -16,7 +16,7 @@ WITH PULL_REQUEST_REVIEW_COMMENT_BASE AS (
     
     SELECT
 
-        LAX_STRING(BASE_REPO_JSON.id)                   AS REPO_ID,
+        LAX_INT64(BASE_REPO_JSON.id)                    AS REPO_ID,
         LAX_STRING(BASE_REPO_JSON.name)                 AS REPO_NAME,
         LAX_STRING(BASE_REPO_JSON.full_name)            AS REPO_FULL_NAME,
         LAX_BOOL(BASE_REPO_JSON.private)                AS REPO_IS_PRIVATE,
@@ -55,7 +55,7 @@ WITH PULL_REQUEST_REVIEW_COMMENT_BASE AS (
 ), PULL_REQUEST_REVIEW_COMMENT_HEAD AS (
     
     SELECT
-        LAX_STRING(HEAD_REPO_JSON.id)                   AS REPO_ID,
+        LAX_INT64(HEAD_REPO_JSON.id)                    AS REPO_ID,
         LAX_STRING(HEAD_REPO_JSON.name)                 AS REPO_NAME,
         LAX_STRING(HEAD_REPO_JSON.full_name)            AS REPO_FULL_NAME,
         LAX_BOOL(HEAD_REPO_JSON.private)                AS REPO_IS_PRIVATE,
@@ -94,7 +94,7 @@ WITH PULL_REQUEST_REVIEW_COMMENT_BASE AS (
 ), PULL_REQUEST_HEAD AS (
     
     SELECT
-        LAX_STRING(HEAD_REPO_JSON.id)                   AS REPO_ID,
+        LAX_INT64(HEAD_REPO_JSON.id)                    AS REPO_ID,
         LAX_STRING(HEAD_REPO_JSON.name)                 AS REPO_NAME,
         LAX_STRING(HEAD_REPO_JSON.full_name)            AS REPO_FULL_NAME,
         LAX_BOOL(HEAD_REPO_JSON.private)                AS REPO_IS_PRIVATE,
@@ -133,7 +133,7 @@ WITH PULL_REQUEST_REVIEW_COMMENT_BASE AS (
 ), PULL_REQUEST_BASE AS (
     
     SELECT
-        LAX_STRING(BASE_REPO_JSON.id)                   AS REPO_ID,
+        LAX_INT64(BASE_REPO_JSON.id)                    AS REPO_ID,
         LAX_STRING(BASE_REPO_JSON.name)                 AS REPO_NAME,
         LAX_STRING(BASE_REPO_JSON.full_name)            AS REPO_FULL_NAME,
         LAX_BOOL(BASE_REPO_JSON.private)                AS REPO_IS_PRIVATE,
@@ -288,4 +288,5 @@ FROM PULL_REQUEST_BASE
 SELECT
     *
 FROM unioned
+WHERE REPO_ID IS NOT NULL
 QUALIFY ROW_NUMBER() OVER (PARTITION BY REPO_ID ORDER BY UPDATED_AT DESC) = 1

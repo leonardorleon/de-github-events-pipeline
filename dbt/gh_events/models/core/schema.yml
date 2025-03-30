@@ -1,0 +1,97 @@
+version: 2
+
+models:
+  - name: FCT_EVENTS
+    description: Fact model which includes events for all the various event types. It is an incremental model which processes the latest data loaded to the landing zone table, allowing for backfills to complete missing data.
+    columns:
+      - name: id
+        data_type: string
+        tests:
+          - unique
+          - not_null
+      - name: event_type
+        data_type: string
+        tests:
+          - not_null
+      - name: public
+        data_type: boolean
+      - name: repo_id
+        data_type: int64
+      - name: actor_id
+        data_type: int64
+      - name: org_id
+        data_type: int64
+      - name: created_at
+        data_type: timestamp
+      - name: load_timestamp
+        data_type: timestamp
+  - name: DIM_USER
+    columns:
+      - name: user_id
+        data_type: string
+        data_tests:
+          - unique
+          - not_null
+      - name: username
+        data_type: string
+      - name: user_type
+        data_type: string
+      - name: updated_at
+        data_type: timestamp
+      - name: load_timestamp
+        data_type: timestamp
+  - name: DIM_REPO
+    columns:
+      - name: repo_id
+        data_type: string
+        data_tests:
+          - not_null
+          - unique
+      - name: repo_name
+        data_type: string
+      - name: repo_full_name
+        data_type: string
+      - name: repo_is_private
+        data_type: boolean
+      - name: repo_description
+        data_type: string
+      - name: repo_is_fork
+        data_type: boolean
+      - name: repo_created_at
+        data_type: string
+      - name: repo_updated_at
+        data_type: string
+      - name: repo_pushed_at
+        data_type: string
+      - name: repo_git_url
+        data_type: string
+      - name: repo_stargazers_count
+        data_type: int64
+      - name: repo_watchers_count
+        data_type: int64
+      - name: repo_language
+        data_type: string
+      - name: repo_has_issues
+        data_type: string
+      - name: repo_has_downloads
+        data_type: string
+      - name: repo_has_wiki
+        data_type: string
+      - name: repo_has_pages
+        data_type: string
+      - name: repo_forks_count
+        data_type: int64
+      - name: repo_open_issues_count
+        data_type: int64
+      - name: repo_forks
+        data_type: int64
+      - name: repo_open_issues
+        data_type: int64
+      - name: repo_watchers
+        data_type: int64
+      - name: repo_default_branch
+        data_type: string
+      - name: updated_at
+        data_type: timestamp
+      - name: load_timestamp
+        data_type: timestamp

@@ -59,6 +59,78 @@ Beyond the docker-compose setup to run the container, we can set up a couple mor
 
 2. [00_push_to_git.yml](kestra/00_push_to_git.yml): This flow shows how to push kestra flows to github directly from kestra. This way we can better work with version control for whatever we develop in the kestra server.
 
+### Creating flows in kestra through the api
+
+When we first start the server, kestra won't have any flows on it, so let's create them:
+
+```
+curl -X POST http://localhost:8080/api/v1/flows \
+     -H "Content-Type: application/x-yaml" \
+     --data-binary @kestra/00_gcp_kv.yml
+```
+
+```
+curl -X POST http://localhost:8080/api/v1/flows \
+     -H "Content-Type: application/x-yaml" \
+     --data-binary @kestra/01_gh_archive_to_bq.yml
+```
+
+```
+curl -X POST http://localhost:8080/api/v1/flows \
+     -H "Content-Type: application/x-yaml" \
+     --data-binary @kestra/02_gcp_dbt.yml
+```
+
+Now we can run the flows through the API as well:
+
+```
+curl -X POST http://localhost:8080/api/v1/executions/de_zoomcamp/01_gh_archive_to_bq \
+      -F branch="develop" \
+      -F events_date="2020-01-02" \
+      -F events_hour="0"
+```
+
+```
+curl -X POST http://localhost:8080/api/v1/executions/de_zoomcamp/02_gcp_dbt
+```
+
+or we can try a backfill:
+
+```
+curl -X PUT http://localhost:8080/api/v1/triggers -H 'Content-Type: application/json' -d '{
+  "backfill": {
+    "start": "2024-03-28T06:00:00.000Z",
+    "end": "2024-03-28T08:00:00.000Z",
+    "inputs": null,
+    "labels": [
+      {
+        "key": "backfill",
+        "value": "true"
+      }
+    ]
+  },
+  "flowId": "01_gh_archive_to_bq",
+  "namespace": "de_zoomcamp",
+  "triggerId": "hourly_schedule"
+}'
+```
+
+curl -X POST http://localhost:8080/api/v1/backfills \
+     -H "Content-Type: application/json" \
+     -d '{
+           "namespace": "de_zoomcamp",
+           "flowId": "01_gh_archive_to_bq",
+           "from": "2024-03-28T06:00:00.000Z",
+           "to": "2024-03-28T08:00:00.000Z",
+           "concurrency": 1,
+           "inputs": null,
+           "labels": [
+              {
+                "key": "backfill",
+                "value": "true"
+              }
+           ]
+}'
 
 ## DBT
 
@@ -146,4 +218,3 @@ So in short, the workflow is:
 ### DBT Sources
 
 To get started with dbt, let's set up the sources which are ingested through kestra data orchestration. First, let's create a [sources.yml](dbt/gh_events/models/sources.yml) in the root of the models folder. Here we can either set up the databaset (project-id when working on bigquery) and the schema (dataset name when working with bigquery) via environment variables, or when it's not there by the backup. change it up if needed.
-
