@@ -69,24 +69,25 @@ tasks:
         commands:
           - ls | grep .json
 
-      - id: process_file
+      - id: upload_and_merge_to_bq
         type: io.kestra.plugin.scripts.python.Commands
         taskRunner: 
           type: io.kestra.plugin.core.runner.Process
+        warningOnStdErr: false
+        env:
+          GCP_BUCKET_NAME: "{{ kv('GCP_BUCKET_NAME') }}"
+          GCP_PROJECT_ID: "{{ kv('GCP_PROJECT_ID') }}"
+          GCP_DATASET: "{{ kv('GCP_DATASET') }}"
+        beforeCommands:
+          - pip install --upgrade google-cloud-bigquery google-cloud-storage
         commands:
           - python kestra/process_gh_archive_events.py --input_file={{ render(vars.file_date) }}-{{ render(vars.file_hour) }}{{ render(vars.file_extension )}} --output_dir=data
         # outputFiles: 
         #   - "data/**"
 
-      - id: check_processed_files
-        type: io.kestra.plugin.scripts.shell.Commands
-        taskRunner:
-          type: io.kestra.plugin.core.runner.Process
-        # inputFiles: '{{ outputs["process_file"]["outputFiles"] }}'
-        commands: 
-          - ls data/
-
-      # - id: upload_and_merge_to_bq
+      - id: complete_log
+        type: io.kestra.plugin.core.log.Log
+        message: "Executing has completed for {{ render(vars.date) }} with file from: {{ render(vars.file_date )}} and hour: {{ render(vars.file_hour) }}."
 
 
   - id: purge_files
