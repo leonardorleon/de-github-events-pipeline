@@ -3,11 +3,50 @@
 This project is part of DataTalkClub's data engineering zoomcamp. [click here to visit the repo](https://github.com/DataTalksClub/data-engineering-zoomcamp/)
 
 
-# Problem Statement
+## Evaluation Criteria
+
+* Problem description
+* Cloud
+* Data ingestion (choose either batch or stream)
+    * Batch / Workflow orchestration
+* Data warehouse
+* Transformations (dbt, spark, etc)
+* Dashboard
+* Reproducibility
+
+# Problem description 
 
 The objective of this project is to create a data pipeline using data from [github archive](https://www.gharchive.org/). This archive is an open source dataset to record the public github timeline so it can be easily accessed by developers for analysis. 
 
-The goal is to generate a dataset from the info retrieved out of the archive and generate a dashboard to obtain some insights about the general activity in github.
+The goal is to generate a dataset from the info retrieved out of the archive and generate a dashboard to obtain some insights about the general activity in github. The data consists of various types of events, ranging from `push`, `pull` to `watch` events.
+
+Throughout this project, a data pipeline will be set up from beginning to end including data extraction and storage into a datalake, ingestion into a datawarehouse handling duplicates and performing various transformations, as well as creating facts and dimension tables to feed a final consumption view which will be utilized in a dashbord.
+
+This will involve using GCP as the cloud provider, with terraform to create necessary infrastructure, kestra to orchestrate the jobs and dbt to handle the data transformations in the datawarehouse, which in this case is bigquery.
+
+# Technologies
+
+Although briefly summarized in the project description, here are the technologies used throughout the project:
+
+* INFRASTRUCTURE: Terraform as a means to manage the project's infrastructure
+* DATA LAKE: Google Sloud Storage for the raw files
+* DATA WAREHOUSE: Google BigQuery
+* DATA TRANSFORMATION TOOL: dbt core for data modeling
+* ORCHESTRATION: Self hosted kestra
+* COMPUTE ENGINE: GCE to run the scheduled data pipelines
+* BI TOOL: Looker Studio to generate a simple dashboard
+* CONTAINERS: Docker and Docker-compose to facilitate reproducibility.
+* SET UP: MAKE as a tool to facilitate some common tasks to set up and run commands.
+
+
+# Pipeline architecture
+
+
+
+# Workflow details
+
+
+----------------------------
 
 # Set up
 
