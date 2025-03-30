@@ -169,7 +169,7 @@ def main(input_file, output_dir):
                                       table_id=event_type,
                                       schema_file_path=schema_file_path,
                                       delete_if_exists=False,
-                                      partition_field="created_at")
+                                      partition_field="load_timestamp")
 
 
         logger.info(f"Staging table {event_type} exists")

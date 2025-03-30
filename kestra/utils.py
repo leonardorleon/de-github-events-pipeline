@@ -1,7 +1,6 @@
 import logging
 import json
 from google.cloud import storage, bigquery
-from google.api_core.exceptions import BadRequest
 
 '''
 TODO:
@@ -50,14 +49,11 @@ def create_table_with_json_schema(project_id,
         client.delete_table(table_ref, not_found_ok=True)
         logging.info(f"Deleted table {table_id} if it existed.")
 
-    # # Load the schema from the JSON file
-    # with open(schema_file_path, 'r') as schema_file:
-    #     schema_json = json.load(schema_file)
-
-    # schema = [bigquery.SchemaField(field['name'], field['type'], field.get('mode', 'NULLABLE')) for field in schema_json]
-
-    # schema = prepare_schema(schema_file_path)
     schema = client.schema_from_json(schema_file_path)
+    
+    # Add the "load_timestamp" field to the schema for an audit field
+    load_timestamp_field = bigquery.SchemaField("load_timestamp", "TIMESTAMP", mode="NULLABLE")
+    schema.append(load_timestamp_field)
 
     table = bigquery.Table(table_ref, schema=schema)
 
@@ -125,52 +121,6 @@ def create_external_table(project_id, dataset_id, table_id, gcs_uri, source_form
     logging.info(f"Created or replaced external table {table_id} in dataset {dataset_id}")
 
 
-# def create_staging_table(project_id, dataset_id, table_id):
-#     """
-#     Creates a BigQuery table if it doesn't exist using the schema from an external table of the same name and suffix "_ext".
-
-#     Args:
-#         project_id (str): The GCP project ID.
-#         dataset_id (str): The BigQuery dataset ID.
-#         table_id (str): The BigQuery table ID.
-
-#     Returns:
-#         None
-#     """
-#     client = bigquery.Client(project=project_id)
-#     dataset_ref = client.dataset(dataset_id)
-#     try:
-#         query = f"""
-#         CREATE TABLE IF NOT EXISTS `{project_id}.{dataset_id}.{table_id}`
-#         PARTITION BY DATE(created_at)
-#         AS SELECT * FROM `{project_id}.{dataset_id}.{table_id}_ext` WHERE 1=0;
-#         """
-#         query_job = client.query(query)
-#         query_job.result()  # Wait for the job to complete
-#         logging.info(f"Ensured {table_id} exists in BigQuery")
-#     except BadRequest as e:
-#         logging.error(f"Error creating staging table: {table_id}, data contains the wrong format")
-#         exit()
-
-
-# def get_column_names(client, project_id, dataset_id, table_id):
-#     """
-#     Retrieves the column names from a BigQuery table.
-
-#     Args:
-#         client (bigquery.Client): The BigQuery client.
-#         project_id (str): The GCP project ID.
-#         dataset_id (str): The BigQuery dataset ID.
-#         table_id (str): The BigQuery table ID.
-
-#     Returns:
-#         list: A list of column names.
-#     """
-#     table_ref = client.dataset(dataset_id).table(table_id)
-#     table = client.get_table(table_ref)
-#     return [schema_field.name for schema_field in table.schema]
-
-
 def get_fields_from_schema(schema_file_path):
     with open(schema_file_path, 'r') as schema_file:
         schema_json = json.load(schema_file)
@@ -203,8 +153,13 @@ def perform_merge_statement(project_id, dataset_id, source_table_id, target_tabl
     column_names = get_fields_from_schema(schema_file_path)
 
     update_string = ', '.join([f'T.{col} = S.{col}' for col in column_names])
+    update_string = f"{update_string}, T.load_timestamp = CURRENT_TIMESTAMP()"
+
     insert_string = ', '.join(column_names)
+    insert_string = f"{insert_string}, load_timestamp"
+
     values_string = ', '.join([f'S.{col}' for col in column_names])
+    values_string = f"{values_string}, CURRENT_TIMESTAMP()"
 
     # Create the merge statement
     merge_statement = f"""

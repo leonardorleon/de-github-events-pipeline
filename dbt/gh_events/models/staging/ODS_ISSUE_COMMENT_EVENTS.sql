@@ -17,6 +17,6 @@ SELECT
     PARSE_JSON(payload)                                         AS PAYLOAD_JSON,
     PARSE_JSON(JSON_EXTRACT(payload, '$.comment.user'))         AS COMMENT_USER_JSON,
     PARSE_JSON(JSON_EXTRACT(payload, '$.issue.user'))           AS ISSUE_USER_JSON,
-    CURRENT_TIMESTAMP()   AS LOAD_TIMESTAMP
+    LOAD_TIMESTAMP
 
 FROM {{ source('landing_zone', 'IssueCommentEvent') }}

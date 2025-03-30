@@ -15,6 +15,7 @@
 WITH PULL_REQUEST_REVIEW_COMMENT_BASE AS (
     
     SELECT
+
         LAX_STRING(BASE_REPO_JSON.id)                   AS REPO_ID,
         LAX_STRING(BASE_REPO_JSON.name)                 AS REPO_NAME,
         LAX_STRING(BASE_REPO_JSON.full_name)            AS REPO_FULL_NAME,
@@ -38,7 +39,8 @@ WITH PULL_REQUEST_REVIEW_COMMENT_BASE AS (
         LAX_INT64(BASE_REPO_JSON.open_issues)           AS REPO_OPEN_ISSUES,
         LAX_INT64(BASE_REPO_JSON.watchers)              AS REPO_WATCHERS,
         LAX_STRING(BASE_REPO_JSON.default_branch)       AS REPO_DEFAULT_BRANCH,
-        CREATED_AT                                      AS UPDATED_AT
+        CREATED_AT                                      AS UPDATED_AT,
+        LOAD_TIMESTAMP
 
     FROM {{ ref('ODS_PULL_REQUESTS_REVIEW_COMMENT_EVENTS') }}
     {% if is_incremental() -%}
@@ -76,7 +78,8 @@ WITH PULL_REQUEST_REVIEW_COMMENT_BASE AS (
         LAX_INT64(HEAD_REPO_JSON.open_issues)           AS REPO_OPEN_ISSUES,
         LAX_INT64(HEAD_REPO_JSON.watchers)              AS REPO_WATCHERS,
         LAX_STRING(HEAD_REPO_JSON.default_branch)       AS REPO_DEFAULT_BRANCH,
-        CREATED_AT                                      AS UPDATED_AT
+        CREATED_AT                                      AS UPDATED_AT,
+        LOAD_TIMESTAMP
 
     FROM {{ ref('ODS_PULL_REQUESTS_REVIEW_COMMENT_EVENTS') }}
     {% if is_incremental() -%}
@@ -114,7 +117,8 @@ WITH PULL_REQUEST_REVIEW_COMMENT_BASE AS (
         LAX_INT64(HEAD_REPO_JSON.open_issues)           AS REPO_OPEN_ISSUES,
         LAX_INT64(HEAD_REPO_JSON.watchers)              AS REPO_WATCHERS,
         LAX_STRING(HEAD_REPO_JSON.default_branch)       AS REPO_DEFAULT_BRANCH,
-        CREATED_AT                                      AS UPDATED_AT
+        CREATED_AT                                      AS UPDATED_AT,
+        LOAD_TIMESTAMP
 
     FROM {{ ref('ODS_PULL_REQUEST_EVENTS') }}
     {% if is_incremental() -%}
@@ -152,7 +156,8 @@ WITH PULL_REQUEST_REVIEW_COMMENT_BASE AS (
         LAX_INT64(BASE_REPO_JSON.open_issues)           AS REPO_OPEN_ISSUES,
         LAX_INT64(BASE_REPO_JSON.watchers)              AS REPO_WATCHERS,
         LAX_STRING(BASE_REPO_JSON.default_branch)       AS REPO_DEFAULT_BRANCH,
-        CREATED_AT                                      AS UPDATED_AT
+        CREATED_AT                                      AS UPDATED_AT,
+        LOAD_TIMESTAMP
 
     FROM {{ ref('ODS_PULL_REQUEST_EVENTS') }}
     {% if is_incremental() -%}
@@ -190,7 +195,8 @@ SELECT
     REPO_OPEN_ISSUES,
     REPO_WATCHERS,
     REPO_DEFAULT_BRANCH,
-    UPDATED_AT
+    UPDATED_AT,
+    LOAD_TIMESTAMP
 FROM PULL_REQUEST_REVIEW_COMMENT_BASE
 UNION ALL
 SELECT
@@ -217,7 +223,8 @@ SELECT
     REPO_OPEN_ISSUES,
     REPO_WATCHERS,
     REPO_DEFAULT_BRANCH,
-    UPDATED_AT
+    UPDATED_AT,
+    LOAD_TIMESTAMP
 FROM PULL_REQUEST_REVIEW_COMMENT_HEAD
 UNION ALL
 SELECT
@@ -244,7 +251,8 @@ SELECT
     REPO_OPEN_ISSUES,
     REPO_WATCHERS,
     REPO_DEFAULT_BRANCH,
-    UPDATED_AT
+    UPDATED_AT,
+    LOAD_TIMESTAMP
 FROM PULL_REQUEST_HEAD
 UNION ALL
 SELECT
@@ -271,7 +279,8 @@ SELECT
     REPO_OPEN_ISSUES,
     REPO_WATCHERS,
     REPO_DEFAULT_BRANCH,
-    UPDATED_AT
+    UPDATED_AT,
+    LOAD_TIMESTAMP
 FROM PULL_REQUEST_BASE
 
 )

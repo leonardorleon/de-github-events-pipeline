@@ -4,6 +4,7 @@
     )
 }}
 
+
 SELECT
     -- select main event fields
     {{gh_event_main_fields()}}
@@ -23,6 +24,6 @@ SELECT
     PARSE_JSON(JSON_EXTRACT(payload, '$.pull_request.head.repo'))   as HEAD_REPO_JSON,
     PARSE_JSON(JSON_EXTRACT(payload, '$.pull_request.head.user'))   as HEAD_USER_JSON,
     PARSE_JSON(JSON_EXTRACT(payload, '$.pull_request.merged_by'))   as MERGED_BY_JSON,
-    CURRENT_TIMESTAMP()   AS LOAD_TIMESTAMP
+    LOAD_TIMESTAMP
 
-FROM {{ source('landing_zone', 'PullRequestReviewCommentEvent') }}
+FROM {{ source('landing_zone', 'PullRequestEvent') }}

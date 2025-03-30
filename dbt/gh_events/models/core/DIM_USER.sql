@@ -17,12 +17,13 @@ WITH COMMIT_COMMENT_USERS AS (
         LAX_STRING(USER_JSON.id)        AS USER_ID,
         LAX_STRING(USER_JSON.login)     AS USERNAME,
         LAX_STRING(USER_JSON.type)      AS USER_TYPE,
-        CREATED_AT                      AS UPDATED_AT
+        CREATED_AT                      AS UPDATED_AT,
+        LOAD_TIMESTAMP
     FROM {{ ref('ODS_COMMIT_COMMENT_EVENTS') }}
     {% if is_incremental() -%}
-    WHERE CREATED_AT > coalesce(
+    WHERE LOAD_TIMESTAMP > coalesce(
             (
-            select max(UPDATED_AT) 
+            select max(LOAD_TIMESTAMP) 
             from {{ this }} 
             ) 
         , '1900-01-01')
@@ -37,9 +38,9 @@ WITH COMMIT_COMMENT_USERS AS (
         CREATED_AT                      AS UPDATED_AT
     FROM {{ ref('ODS_PULL_REQUESTS_REVIEW_COMMENT_EVENTS') }}
     {% if is_incremental() -%}
-    WHERE CREATED_AT > coalesce(
+    WHERE LOAD_TIMESTAMP > coalesce(
             (
-            select max(UPDATED_AT) 
+            selectmax(LOAD_TIMESTAMP) 
             from {{ this }} 
             ) 
         , '1900-01-01')
@@ -54,9 +55,9 @@ WITH COMMIT_COMMENT_USERS AS (
         CREATED_AT                          AS UPDATED_AT
     FROM {{ ref('ODS_PULL_REQUESTS_REVIEW_COMMENT_EVENTS') }}
     {% if is_incremental() -%}
-    WHERE CREATED_AT > coalesce(
+    WHERE LOAD_TIMESTAMP > coalesce(
             (
-            select max(UPDATED_AT) 
+            selectmax(LOAD_TIMESTAMP) 
             from {{ this }} 
             ) 
         , '1900-01-01')
@@ -71,9 +72,9 @@ WITH COMMIT_COMMENT_USERS AS (
         CREATED_AT                          AS UPDATED_AT
     FROM {{ ref('ODS_PULL_REQUESTS_REVIEW_COMMENT_EVENTS') }}
     {% if is_incremental() -%}
-    WHERE CREATED_AT > coalesce(
+    WHERE LOAD_TIMESTAMP > coalesce(
             (
-            select max(UPDATED_AT) 
+            selectmax(LOAD_TIMESTAMP) 
             from {{ this }} 
             ) 
         , '1900-01-01')
@@ -89,9 +90,9 @@ WITH COMMIT_COMMENT_USERS AS (
         CREATED_AT                          AS UPDATED_AT
     FROM {{ ref('ODS_ISSUE_COMMENT_EVENTS') }}
     {% if is_incremental() -%}
-    WHERE CREATED_AT > coalesce(
+    WHERE LOAD_TIMESTAMP > coalesce(
             (
-            select max(UPDATED_AT) 
+            selectmax(LOAD_TIMESTAMP) 
             from {{ this }} 
             ) 
         , '1900-01-01')
@@ -106,9 +107,9 @@ WITH COMMIT_COMMENT_USERS AS (
         CREATED_AT                              AS UPDATED_AT
     FROM {{ ref('ODS_ISSUE_COMMENT_EVENTS') }}
     {% if is_incremental() -%}
-    WHERE CREATED_AT > coalesce(
+    WHERE LOAD_TIMESTAMP > coalesce(
             (
-            select max(UPDATED_AT) 
+            selectmax(LOAD_TIMESTAMP) 
             from {{ this }} 
             ) 
         , '1900-01-01')
@@ -122,9 +123,9 @@ WITH COMMIT_COMMENT_USERS AS (
         CREATED_AT                              AS UPDATED_AT
     FROM {{ ref('ODS_PULL_REQUEST_EVENTS') }}
     {% if is_incremental() -%}
-    WHERE CREATED_AT > coalesce(
+    WHERE LOAD_TIMESTAMP > coalesce(
             (
-            select max(UPDATED_AT) 
+            selectmax(LOAD_TIMESTAMP) 
             from {{ this }} 
             ) 
         , '1900-01-01')
@@ -139,9 +140,9 @@ WITH COMMIT_COMMENT_USERS AS (
         CREATED_AT                                  AS UPDATED_AT
     FROM {{ ref('ODS_PULL_REQUEST_EVENTS') }}
     {% if is_incremental() -%}
-    WHERE CREATED_AT > coalesce(
+    WHERE LOAD_TIMESTAMP > coalesce(
             (
-            select max(UPDATED_AT) 
+            selectmax(LOAD_TIMESTAMP) 
             from {{ this }} 
             ) 
         , '1900-01-01')
@@ -156,9 +157,9 @@ WITH COMMIT_COMMENT_USERS AS (
         CREATED_AT                              AS UPDATED_AT
     FROM {{ ref('ODS_PULL_REQUEST_EVENTS') }}
     {% if is_incremental() -%}
-    WHERE CREATED_AT > coalesce(
+    WHERE LOAD_TIMESTAMP > coalesce(
             (
-            select max(UPDATED_AT) 
+            selectmax(LOAD_TIMESTAMP) 
             from {{ this }} 
             ) 
         , '1900-01-01')
@@ -172,9 +173,9 @@ WITH COMMIT_COMMENT_USERS AS (
         CREATED_AT                          AS UPDATED_AT
     FROM {{ ref('ODS_ISSUES_EVENTS') }}
     {% if is_incremental() -%}
-    WHERE CREATED_AT > coalesce(
+    WHERE LOAD_TIMESTAMP > coalesce(
             (
-            select max(UPDATED_AT) 
+            selectmax(LOAD_TIMESTAMP) 
             from {{ this }} 
             ) 
         , '1900-01-01')
@@ -182,23 +183,23 @@ WITH COMMIT_COMMENT_USERS AS (
 
 ), unioned as (
     SELECT
-        USER_ID, USERNAME, USER_TYPE, UPDATED_AT
+        USER_ID, USERNAME, USER_TYPE, UPDATED_AT, LOAD_TIMESTAMP
     FROM COMMIT_COMMENT_USERS
     UNION ALL
     SELECT 
-        USER_ID, USERNAME, USER_TYPE, UPDATED_AT
+        USER_ID, USERNAME, USER_TYPE, UPDATED_AT, LOAD_TIMESTAMP
     FROM PULL_REQUESTS_REVIEW_COMMENT_USERS
     UNION ALL
     SELECT 
-        USER_ID, USERNAME, USER_TYPE, UPDATED_AT
+        USER_ID, USERNAME, USER_TYPE, UPDATED_AT, LOAD_TIMESTAMP
     FROM ISSUE_COMMENT_USERS
     UNION ALL
     SELECT 
-        USER_ID, USERNAME, USER_TYPE, UPDATED_AT
+        USER_ID, USERNAME, USER_TYPE, UPDATED_AT, LOAD_TIMESTAMP
     FROM PULL_REQUEST_USERS
     UNION ALL
     SELECT 
-        USER_ID, USERNAME, USER_TYPE, UPDATED_AT
+        USER_ID, USERNAME, USER_TYPE, UPDATED_AT, LOAD_TIMESTAMP
     FROM ISSUES_USERS   
 )
 
@@ -206,5 +207,6 @@ SELECT DISTINCT
     USER_ID,
     USERNAME,
     USER_TYPE,
-    UPDATED_AT
+    UPDATED_AT,
+    LOAD_TIMESTAMP
 FROM unioned

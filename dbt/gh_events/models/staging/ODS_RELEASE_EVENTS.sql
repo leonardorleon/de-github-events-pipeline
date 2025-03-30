@@ -15,7 +15,6 @@ SELECT
     {{gh_event_org_fields()}}
 
     PARSE_JSON(payload) as PAYLOAD_JSON,
-    PARSE_JSON(JSON_EXTRACT(payload, '$.issue.user'))        as ISSUE_USER_JSON,
-    CURRENT_TIMESTAMP()   AS LOAD_TIMESTAMP
+    LOAD_TIMESTAMP
 
-FROM {{ source('landing_zone', 'IssuesEvent') }}
+FROM {{ source('landing_zone', 'ReleaseEvent') }}

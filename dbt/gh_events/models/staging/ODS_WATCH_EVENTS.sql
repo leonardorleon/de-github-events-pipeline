@@ -15,6 +15,6 @@ SELECT
     {{gh_event_org_fields()}}
 
     PARSE_JSON(payload) as PAYLOAD_JSON,
-    CURRENT_TIMESTAMP()   AS LOAD_TIMESTAMP
+    LOAD_TIMESTAMP
 
-FROM {{ source('landing_zone', 'MemberEvent') }}
+FROM {{ source('landing_zone', 'WatchEvent') }}

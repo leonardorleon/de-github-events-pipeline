@@ -15,6 +15,8 @@ SELECT
     {{gh_event_org_fields()}}
 
     PARSE_JSON(payload) as PAYLOAD_JSON,
-    CURRENT_TIMESTAMP()   AS LOAD_TIMESTAMP
+    PARSE_JSON(JSON_EXTRACT(payload, '$.comment.user'))        as USER_JSON,
+    LOAD_TIMESTAMP
 
-FROM {{ source('landing_zone', 'ReleaseEvent') }}
+FROM {{ source('landing_zone', 'CommitCommentEvent') }}
+

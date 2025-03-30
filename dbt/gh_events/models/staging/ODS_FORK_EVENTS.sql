@@ -4,7 +4,6 @@
     )
 }}
 
-
 SELECT
     -- select main event fields
     {{gh_event_main_fields()}}
@@ -14,8 +13,8 @@ SELECT
     {{gh_event_actor_fields()}}
     -- select organization fields
     {{gh_event_org_fields()}}
-    
-    PARSE_JSON(payload) as payload_json,
-    CURRENT_TIMESTAMP()   AS LOAD_TIMESTAMP
 
-FROM {{ source('landing_zone', 'PushEvent') }}
+    PARSE_JSON(payload) as PAYLOAD_JSON,
+    LOAD_TIMESTAMP
+
+FROM {{ source('landing_zone', 'ForkEvent') }}
