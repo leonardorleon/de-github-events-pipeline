@@ -1,0 +1,69 @@
+{{ 
+  config(
+    materialized = 'incremental',
+    cluster_by = ['EVENT_TYPE', 'ID'],
+    partition_by = {
+      "field": "EVENT_DATE",
+      "data_type": "timestamp",
+      "granularity": "day"
+    }
+  ) 
+}}
+
+WITH FCT_FILTERED AS (
+  SELECT 
+      ID,
+      EVENT_TYPE,
+      PUBLIC,
+      CREATED_AT AS EVENT_DATE,
+      REPO_ID,
+      ACTOR_ID
+  FROM {{ ref("FCT_EVENTS") }}
+  {% if is_incremental() %}
+  WHERE CREATED_AT >= coalesce((SELECT MAX(EVENT_DATE) FROM {{ this }}), '1900-01-01')
+  {% endif %}
+),
+USER_JOINED AS (
+  SELECT 
+      FCT.*,
+      USR.USERNAME,
+      USR.USER_TYPE
+  FROM FCT_FILTERED AS FCT
+  LEFT JOIN {{ ref("DIM_USER") }} AS USR
+    ON FCT.ACTOR_ID = USR.USER_ID
+),
+REPO_JOINED AS (
+  SELECT 
+      USER_JOINED.*,
+      REPO.REPO_NAME,
+      REPO.REPO_FULL_NAME,
+      REPO.REPO_IS_PRIVATE,
+      REPO.REPO_DESCRIPTION,
+      REPO.REPO_IS_FORK,
+      REPO.REPO_CREATED_AT,
+      REPO.REPO_UPDATED_AT,
+      REPO.REPO_PUSHED_AT,
+      REPO.REPO_GIT_URL,
+      REPO.REPO_STARGAZERS_COUNT,
+      REPO.REPO_WATCHERS_COUNT,
+      REPO.REPO_LANGUAGE,
+      REPO.REPO_HAS_ISSUES,
+      REPO.REPO_HAS_DOWNLOADS,
+      REPO.REPO_HAS_WIKI,
+      REPO.REPO_HAS_PAGES,
+      REPO.REPO_FORKS_COUNT,
+      REPO.REPO_OPEN_ISSUES_COUNT,
+      REPO.REPO_FORKS,
+      REPO.REPO_OPEN_ISSUES,
+      REPO.REPO_WATCHERS,
+      REPO.REPO_DEFAULT_BRANCH
+  FROM USER_JOINED
+  LEFT JOIN {{ ref("DIM_REPO") }} AS REPO
+    ON USER_JOINED.REPO_ID = REPO.REPO_ID
+)
+SELECT 
+    *,
+    FORMAT_TIMESTAMP('%Y', EVENT_DATE) AS EVENT_YEAR,
+    FORMAT_TIMESTAMP('%m', EVENT_DATE) AS EVENT_MONTH,
+    FORMAT_TIMESTAMP('%a', EVENT_DATE) AS WEEKDAY_SHORT
+FROM REPO_JOINED
