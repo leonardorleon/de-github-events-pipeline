@@ -62,7 +62,6 @@ echo "KESTRA_GITHUB_USERNAME=$github_user" >> env_file.env
 echo "SECRET_GITHUB_ACCESS_TOKEN=$github_token" >> env_file.env 
 
 
-# Create an env file that can be used by dbt
-
+# Create an env file that can be used by dbt as well
 echo "DBT_DATABASE=$project_id" >> env_file.env
 echo "DBT_SCHEMA=$bq_dataset" >> env_file.env 

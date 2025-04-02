@@ -7,7 +7,7 @@ from utils import upload_to_gcs, create_external_table, perform_merge_statement,
 
 def extract_events_from_json(file_path):
     """
-    Reads a Github events JSON file where each line is a separate JSON object and returns a list of events.
+    Reads a GitHub events JSON file where each line is a separate JSON object and returns a list of events.
 
     Args:
         file_path (str): The path to the JSON file to be read.
@@ -28,15 +28,15 @@ def extract_events_from_json(file_path):
 def extract_events_by_type(events, output_dir, file_name):
     """
     Takes an array of events and separates them according to their event type. 
-    It writes them to a directory for their corresponding event type.
+    It writes them to separate directories for their corresponding event types.
 
     Args:
         events (list): A list of events, where each event is a dictionary representing a JSON object.
         output_dir (str): The path to the directory where the output files should be saved.
-        file_name (str): The date and hour string extracted from the input file name to be used in the output file names.
+        file_name (str): The base name (e.g., date and hour) extracted from the input file name to be used in the output file names.
 
     Returns:
-        an array containing the paths for the processed files
+        list: An array containing the paths of the processed files for each event type.
     """
     if not os.path.exists(output_dir):
         logger.info(f"Output dir does not exist. Creating: {output_dir}")
@@ -100,6 +100,7 @@ def extract_events_by_type(events, output_dir, file_name):
 def main(input_file, output_dir):
     """
     Processes a GitHub events archive JSON file and separates events by event type into the specified output directory.
+    It then uploads the processed files to a GCS bucket, creates external tables in BigQuery, and merges the data into staging tables.
 
     Args:
         input_file (str): The path to the GitHub events archive JSON file.

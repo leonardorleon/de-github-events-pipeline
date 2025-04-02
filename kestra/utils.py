@@ -2,24 +2,6 @@ import logging
 import json
 from google.cloud import storage, bigquery
 
-'''
-TODO:
-- make schema file path a constant
-- clean up not needed functions
-- make sure to use the schema to create the tables
-- on the merge statement only use the schema columns not the inner parts of the structures
-'''
-
-
-# def prepare_schema(schema_file_path):
-#     # Load the schema from the JSON file
-#     with open(schema_file_path, 'r') as schema_file:
-#         schema_json = json.load(schema_file)
-
-#     schema = [bigquery.SchemaField(field['name'], field['type'], field.get('mode', 'NULLABLE')) for field in schema_json]
-
-#     return schema
-
 
 def create_table_with_json_schema(project_id,
                                   dataset_id,
@@ -28,7 +10,8 @@ def create_table_with_json_schema(project_id,
                                   delete_if_exists=False,
                                   partition_field=None):
     """
-    Creates a BigQuery table using a JSON schema file, with options to delete the table if it already exists and to partition the table.
+    Creates a BigQuery table using a JSON schema file, with options to delete the table if it already exists,
+    to partition the table, and to add an audit field ("load_timestamp").
 
     Args:
         project_id (str): The GCP project ID.
@@ -73,7 +56,7 @@ def upload_to_gcs(bucket_name, source_file_name, destination_blob_name):
 
     Args:
         bucket_name (str): The name of the GCS bucket.
-        source_file_name (str): The path to the file to upload.
+        source_file_name (str): The local path to the file to upload.
         destination_blob_name (str): The destination path in the GCS bucket.
 
     Returns:
@@ -90,13 +73,15 @@ def upload_to_gcs(bucket_name, source_file_name, destination_blob_name):
 
 def create_external_table(project_id, dataset_id, table_id, gcs_uri, source_format, schema_file_path):
     """
-    Creates or replaces an external table in BigQuery. For this use case, autodetect is set to True.
+    Creates or replaces an external table in BigQuery using a schema file and a GCS URI as the data source.
 
     Args:
         project_id (str): The GCP project ID.
         dataset_id (str): The BigQuery dataset ID.
         table_id (str): The BigQuery table ID.
         gcs_uri (str): The GCS URI of the external data source.
+        source_format (str): The format of the external data (e.g., "CSV", "NEWLINE_DELIMITED_JSON").
+        schema_file_path (str): The path to the JSON schema file.
 
     Returns:
         None
@@ -122,6 +107,15 @@ def create_external_table(project_id, dataset_id, table_id, gcs_uri, source_form
 
 
 def get_fields_from_schema(schema_file_path):
+    """
+    Extracts field names from a JSON schema file.
+
+    Args:
+        schema_file_path (str): The path to the JSON schema file.
+
+    Returns:
+        list: A list of field names extracted from the schema.
+    """
     with open(schema_file_path, 'r') as schema_file:
         schema_json = json.load(schema_file)
 
@@ -134,7 +128,7 @@ def get_fields_from_schema(schema_file_path):
 
 def perform_merge_statement(project_id, dataset_id, source_table_id, target_table_id, unique_key, schema_file_path):
     """
-    Prepares a dynamic merge statement between the source and target tables.
+    Executes a dynamic merge statement in BigQuery to merge data from a source table into a target table.
 
     Args:
         project_id (str): The GCP project ID.
@@ -142,14 +136,14 @@ def perform_merge_statement(project_id, dataset_id, source_table_id, target_tabl
         source_table_id (str): The source BigQuery table ID.
         target_table_id (str): The target BigQuery table ID.
         unique_key (str): The unique key column for the merge operation.
+        schema_file_path (str): The path to the JSON schema file used to determine column names.
 
     Returns:
-        str: The dynamic merge statement.
+        str: The executed merge statement.
     """
     client = bigquery.Client(project=project_id)
 
     # Get column names from the source table
-    # column_names = get_column_names(client, project_id, dataset_id, source_table_id)
     column_names = get_fields_from_schema(schema_file_path)
 
     update_string = ', '.join([f'T.{col} = S.{col}' for col in column_names])
