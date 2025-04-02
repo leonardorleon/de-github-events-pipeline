@@ -1,0 +1,21 @@
+version: 2
+
+sources:
+  - name: landing_zone
+    database: "{{ env_var('GCP_PROJECT_ID', 'sunlit-amulet-341719') }}"
+    schema: "{{ env_var('GCP_DATASET', 'gh_events_dataset') }}"
+    tables:
+      - name: CommitCommentEvent
+      - name: CreateEvent
+      - name: DeleteEvent
+      - name: ForkEvent
+      - name: GollumEvent
+      - name: IssueCommentEvent
+      - name: IssuesEvent
+      - name: MemberEvent
+      - name: PublicEvent
+      - name: PullRequestEvent
+      - name: PullRequestReviewCommentEvent
+      - name: PushEvent
+      - name: ReleaseEvent
+      - name: WatchEvent

@@ -1,0 +1,101 @@
+id: 01_gh_archive_to_bq
+namespace: prod
+
+inputs:
+  - id: branch
+    type: SELECT
+    displayName: Select the branch of the project to run
+    values: ['main','develop']
+    defaults: 'develop'
+    allowCustomValue: true
+
+  - id: events_date
+    type: STRING
+    displayName: Select the date to extract the events from (to ensure data is available, limit extraction to at least one day before current date)
+    defaults: "2016-02-02"
+    validator: "^\\d{4}-\\d{2}-\\d{2}$"
+    
+  - id: events_hour
+    type: SELECT
+    displayName: Select the hour to extract events from
+    values: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23']
+    defaults: '0'
+    allowCustomValue: true
+
+variables:
+  date: "{{ trigger.date | dateAdd(-1, 'DAYS') ?? inputs.events_date  }}"
+  file_date: "{{ trigger.date | dateAdd(-1, 'DAYS') | date(format='yyyy-MM-dd') ?? inputs.events_date}}"
+  file_hour: "{{ trigger.date | date(format='H') ?? inputs.events_hour }}"
+  file_extension: ".json"
+
+tasks:
+  - id: set_label
+    type: io.kestra.plugin.core.execution.Labels
+    labels:
+      environment: "{{ inputs.branch }}"
+      file_date: "{{ render(vars.file_date) }}"
+      file_hour: "{{ render(vars.file_hour) }}"
+
+  - id: working_directory
+    type: io.kestra.plugin.core.flow.WorkingDirectory
+    tasks:
+      - id: clone_repo
+        type: io.kestra.plugin.git.Clone
+        url: "{{ envs.github_url }}"
+        branch: "{{inputs.branch}}"
+
+      - id: start_etl
+        type: io.kestra.plugin.core.log.Log
+        message: "Executing extraction for date {{ render(vars.date) }} with file from: {{ render(vars.file_date )}} and hour: {{ render(vars.file_hour) }}."
+      
+      - id: extract_files
+        type: io.kestra.plugin.scripts.shell.Commands
+        # outputFiles:
+        #   - "*.json"
+        taskRunner:
+          type: io.kestra.plugin.core.runner.Process
+        # -q makes the execution quiet while -O- outputs the contents to stdout instead of a file, so we can pipe it to gunzip.
+        # gunzip > file.gz takes the piped data into the file
+        # note: in this case, the range function is inclusive on both ends
+        commands:
+          - wget -qO- "https://data.gharchive.org/{{ render(vars.file_date) }}-{{ render(vars.file_hour) }}{{ render(vars.file_extension )}}.gz" 
+            | gunzip > {{ render(vars.file_date) }}-{{ render(vars.file_hour) }}{{ render(vars.file_extension )}}
+
+      - id: inspect_file
+        type: io.kestra.plugin.scripts.shell.Commands
+        taskRunner: 
+          type: io.kestra.plugin.core.runner.Process
+        # inputFiles: '{{ outputs["extract_files"]["outputFiles"] }}'
+        commands:
+          - ls | grep .json
+
+      - id: upload_and_merge_to_bq
+        type: io.kestra.plugin.scripts.python.Commands
+        taskRunner: 
+          type: io.kestra.plugin.core.runner.Process
+        warningOnStdErr: false
+        env:
+          GCP_BUCKET_NAME: "{{ kv('GCP_BUCKET_NAME') }}"
+          GCP_PROJECT_ID: "{{ kv('GCP_PROJECT_ID') }}"
+          GCP_DATASET: "{{ kv('GCP_DATASET') }}"
+        beforeCommands:
+          - pip install --upgrade google-cloud-bigquery google-cloud-storage
+        commands:
+          - python kestra/process_gh_archive_events.py --input_file={{ render(vars.file_date) }}-{{ render(vars.file_hour) }}{{ render(vars.file_extension )}} --output_dir=data
+        # outputFiles: 
+        #   - "data/**"
+
+      - id: complete_log
+        type: io.kestra.plugin.core.log.Log
+        message: "Executing has completed for {{ render(vars.date) }} with file from: {{ render(vars.file_date )}} and hour: {{ render(vars.file_hour) }}."
+
+
+  - id: purge_files
+    type: io.kestra.plugin.core.storage.PurgeCurrentExecutionFiles
+    description: To avoid cluttering, we will remove the downloaded files. Although mostly they should be in the temporary working directory.
+
+triggers:
+  - id: hourly_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 * * * *"
+    disabled: false
