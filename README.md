@@ -20,7 +20,7 @@ The objective of this project is to create a data pipeline using data from [gith
 
 The goal is to generate a dataset from the info retrieved out of the archive and generate a dashboard to obtain some insights about the general activity in github. The data consists of various types of events, ranging from `push`, `pull` to `watch` events.
 
-Throughout this project, a data pipeline will be set up from beginning to end including data extraction and storage into a datalake, ingestion into a datawarehouse handling duplicates and performing various transformations, as well as creating facts and dimension tables to feed a final consumption view which will be utilized in a dashbord.
+Throughout this project, a data pipeline will be set up from beginning to end, including data extraction and storage into a datalake, ingestion into a datawarehouse handling duplicates and performing various transformations, as well as creating facts and dimension tables to feed a final consumption view which will be utilized in a dashbord.
 
 This will involve using GCP as the cloud provider, with terraform to create necessary infrastructure, kestra to orchestrate the jobs and dbt to handle the data transformations in the datawarehouse, which in this case is bigquery.
 
@@ -28,16 +28,17 @@ This will involve using GCP as the cloud provider, with terraform to create nece
 
 Although briefly summarized in the project description, here are the technologies used throughout the project:
 
-* INFRASTRUCTURE: Terraform as a means to manage the project's infrastructure
-* DATA LAKE: Google Sloud Storage for the raw files
-* DATA WAREHOUSE: Google BigQuery
-* DATA TRANSFORMATION TOOL: dbt core for data modeling
-* ORCHESTRATION: Self hosted kestra
-* COMPUTE ENGINE: GCE to run the scheduled data pipelines
-* BI TOOL: Looker Studio to generate a simple dashboard
-* CONTAINERS: Docker and Docker-compose to facilitate reproducibility.
-* SET UP: MAKE as a tool to facilitate some common tasks to set up and run commands.
-
+| **Component**              | **Description**                                                                 |
+|----------------------------|---------------------------------------------------------------------------------|
+| **INFRASTRUCTURE**         | Terraform as a means to manage the project's infrastructure                     |
+| **DATA LAKE**              | Google Cloud Storage for the raw files                                         |
+| **DATA WAREHOUSE**         | Google BigQuery                                                                |
+| **DATA TRANSFORMATION TOOL** | dbt core for data modeling                                                    |
+| **ORCHESTRATION**          | Self-hosted Kestra                                                             |
+| **COMPUTE ENGINE**         | GCE to run the scheduled data pipelines                                        |
+| **BI TOOL**                | Looker Studio to generate a simple dashboard                                   |
+| **CONTAINERS**             | Docker and Docker-compose to facilitate reproducibility                        |
+| **SET UP**                 | MAKE as a tool to facilitate some common tasks to set up and run commands      |
 
 # Pipeline architecture
 
@@ -65,6 +66,9 @@ Transformations are done in DBT core. This is also running in the compute engine
 The transformations can be seen in the [dbt](dbt/gh_events/) folder. They consist of a staging or data preparation layer, I've prepared some dbt macros for some of the fields which are repeated along the various event types. I will mention more about it later, but here I wanted to explore and exploit further the payloads for the various event types, but I didn't find as much as I wanted, so decided to keep it simple in most of them. 
 
 In the core layer I prepared some fact and dimension tables and a datamart integration. Lastly, there are consumption views with some tables containing metrics in a format that would be easy to dashboard.
+
+![](images/03_dbt_lineage.png)
+
 
 Where applicable, I have used incremental models that are also partitioned and clustered according to how the data is likely to be used. I've added to the data an audit field with the `load timestamp` which will indicate dbt that the data has been newly introduced and it should be processed. The main reason for this is to facilitate backfills, I think it is likely that one might want to load older data than what has already been loaded. Using only the `created at` field on the incrementals, would make it so that older data that has been recently ingested is ignored. 
 
@@ -211,7 +215,7 @@ You can now make sure everything is built correctly
 
 use `make up` to build the docker images and start kestra. Alrenatively you can use `make start` if all you want to do is start the components
 
-Once they are running, you can choose to prepare things through the UI or through the API. For example:
+Once they are running, you can choose to prepare things through the UI by going to `localhost/8080` in your browser or through the API. For example:
 
 When we first start the server, kestra won't have any flows on it, so let's create them:
 
@@ -241,11 +245,14 @@ curl -X POST http://localhost:8080/api/v1/executions/prod/00_gcp_kv
 
 From here you can either go to the UI to run a backfill, or also do it through the API:
 
+![](images/04_kestra_backfills.png)
+
+
 ```
 curl -X PUT http://localhost:8080/api/v1/triggers -H 'Content-Type: application/json' -d '{
   "backfill": {
-    "start": "2024-03-28T06:00:00.000Z",
-    "end": "2024-03-28T08:00:00.000Z",
+    "start": "2024-02-28T06:00:00.000Z",
+    "end": "2024-02-28T08:00:00.000Z",
     "inputs": null,
     "labels": [
       {
@@ -266,70 +273,13 @@ You can also run the dbt transformations through here:
 curl -X POST http://localhost:8080/api/v1/executions/prod/02_gcp_dbt
 ```
 
-In any case, there are triggers in the flows that as long as they're active they will be running every hour to bring and process data. One thing I've done is to have the trigger runs to be 1 day behind. This is to ensure there is data in the archive, since usually on the same day it will take some time for it to start showing up. 
+In any case, there are triggers in the flows that as long as they're active (which they are activated when you first create the flow from the file) they will be running every hour to bring and process data. One thing I've done is to have the trigger runs to be 1 day behind. This is to ensure there is data in the archive, since usually on the same day it will take some time for it to start showing up. 
 
----------------------------------------------------
+---------------------------------------------------------------------------
 
+Some extra detail for developing in dbt on a vm such as this
 
-
-### Creating flows in kestra through the api
-
-When we first start the server, kestra won't have any flows on it, so let's create them:
-
-```
-curl -X POST http://localhost:8080/api/v1/flows \
-     -H "Content-Type: application/x-yaml" \
-     --data-binary @kestra/00_gcp_kv.yml
-```
-
-```
-curl -X POST http://localhost:8080/api/v1/flows \
-     -H "Content-Type: application/x-yaml" \
-     --data-binary @kestra/01_gh_archive_to_bq.yml
-```
-
-```
-curl -X POST http://localhost:8080/api/v1/flows \
-     -H "Content-Type: application/x-yaml" \
-     --data-binary @kestra/02_gcp_dbt.yml
-```
-
-Now we can run the flows through the API as well:
-
-```
-curl -X POST http://localhost:8080/api/v1/executions/de_zoomcamp/01_gh_archive_to_bq \
-      -F branch="develop" \
-      -F events_date="2020-01-02" \
-      -F events_hour="0"
-```
-
-```
-curl -X POST http://localhost:8080/api/v1/executions/de_zoomcamp/02_gcp_dbt
-```
-
-or we can try a backfill:
-
-```
-curl -X PUT http://localhost:8080/api/v1/triggers -H 'Content-Type: application/json' -d '{
-  "backfill": {
-    "start": "2024-03-28T06:00:00.000Z",
-    "end": "2024-03-28T08:00:00.000Z",
-    "inputs": null,
-    "labels": [
-      {
-        "key": "backfill",
-        "value": "true"
-      }
-    ]
-  },
-  "flowId": "01_gh_archive_to_bq",
-  "namespace": "de_zoomcamp",
-  "triggerId": "hourly_schedule"
-}'
-```
-
-
-## DBT
+### DBT
 
 To develop on dbt, I've added the service to the docker-compose.yml file, as well as a dockerfile with the instructions on how to create the image. Besides that, before initializing the dbt project, we need a profiles.yml file, which is often in `~/.dbt/profiles.yml`. This will vary person to person, but it should look something like this:
 
@@ -344,7 +294,7 @@ bq-dbt-project:
       location: europe-west1
       method: service-account
       #priority: interactive
-      project: sunlit-amulet-341719
+      project: <project_id>
       threads: 4
       timeout_seconds: 300
       type: bigquery
@@ -355,7 +305,7 @@ bq-dbt-project:
       location: europe-west1
       method: service-account
       #priority: interactive
-      project: sunlit-amulet-341719
+      project: <project_id>
       threads: 4
       timeout_seconds: 300
       type: bigquery
@@ -377,7 +327,7 @@ Now, there are a few ways to make the container work. One of them is the followi
 
 * `docker-compose -f docker_setup/docker-compose.yml run --workdir="//usr/app/dbt/gh_events" dbt-bq dbt debug`
 
-However, this is a bit cumbersome, so I've decided to just run the container in interactive mode, that way I don't need to run a long command everytime and spin up the container each time I want to run a command. 
+However, this is a bit cumbersome, even with make. So I've decided to just run the container in interactive mode, that way I don't need to run a long command everytime and spin up the container each time I want to run a command. 
 
 ### Run in interactive mode
 
@@ -410,8 +360,3 @@ So in short, the workflow is:
 * make up: will start kestra in the background. You can develop on the UI or simply let it work on the active triggers on it's own or via backfill
 * make dbt: will start the dbt container, which you can either attach to on the terminal or attach through vscode to use the dbt power user extension
 * make stop: will stop the containers in the docker-compose.yml
-
-
-### DBT Sources
-
-To get started with dbt, let's set up the sources which are ingested through kestra data orchestration. First, let's create a [sources.yml](dbt/gh_events/models/sources.yml) in the root of the models folder. Here we can either set up the databaset (project-id when working on bigquery) and the schema (dataset name when working with bigquery) via environment variables, or when it's not there by the backup. change it up if needed.
