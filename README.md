@@ -360,3 +360,14 @@ So in short, the workflow is:
 * make up: will start kestra in the background. You can develop on the UI or simply let it work on the active triggers on it's own or via backfill
 * make dbt: will start the dbt container, which you can either attach to on the terminal or attach through vscode to use the dbt power user extension
 * make stop: will stop the containers in the docker-compose.yml
+
+# Areas of improvement/Next steps
+
+In retrospect, there are various areas I'd like to improve, I've already mentioned some throughout the write up, but I'll compile the main ones here:
+
+* Add CI/CD
+* Try out OpenLineage and maybe Marquez to get a full data product lineage. I'm interested on that type of visibility and monitoring.
+* Although Kestra was fine, I'd like to evaluate dagster next, maybe a comparison between it and airflow implementation.
+* This may go for the next project, but I'd like to explore Iceberg tables.
+* I did not like the experience of working with Looker studio, next time I might try a simple streamlit app instead. 
+* The dataset was not as I expected originally, probably I should've spent more time in analysis before deciding the approach, but the main goal for me this time was implementation. Still, I was hoping the individual payloads per event type where richer, and I wanted to simulate that I received them separately rather than already compiled all together, as usually that's the case in projects I've worked on.
